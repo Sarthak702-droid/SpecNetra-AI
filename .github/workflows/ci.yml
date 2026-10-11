@@ -20,8 +20,10 @@ jobs:
           python-version: "3.12"
       - name: Install Ruff
         run: pip install ruff
-      - name: Run Ruff Lint
-        run: ruff check app/ tests/
+      - name: Run Ruff Lint & Format Check
+        run: |
+          ruff check app/ tests/
+          ruff format --check app/ tests/
 
   unit-tests:
     name: Unit Tests
@@ -70,6 +72,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build demo web frontend
+        run: |
+          cd demo/web
+          npm install
+          npm run build
       - name: Install dependencies
         run: |
           pip install -e ".[dev]"
@@ -100,6 +110,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build demo web frontend
+        run: |
+          cd demo/web
+          npm install
+          npm run build
       - name: Install dependencies
         run: |
           pip install -e ".[dev]"

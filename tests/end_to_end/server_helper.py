@@ -4,23 +4,181 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from demo.api.main import app as api_app
 
-# Create a simple SPA server for demo/web/dist
+# Create a simple SPA server for demo/web/dist with embedded fallback
 web_app = FastAPI()
 dist_dir = Path(__file__).parent.parent.parent / "demo" / "web" / "dist"
 
 if dist_dir.exists():
     web_app.mount("/assets", StaticFiles(directory=dist_dir / "assets"), name="assets")
 
+FALLBACK_SPA_HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpecNetra Demo Hospital</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; background: #f8fafc; color: #1e293b; margin: 0; }
+    .card { max-width: 500px; margin: 40px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+    h1 { margin-top: 0; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 6px; font-weight: 500; }
+    input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .error { color: #dc2626; margin-top: 8px; font-weight: 500; }
+    .detail-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 6px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    const app = document.getElementById("app");
+    function getApiUrl() {
+      return window.location.port === "3000" ? `${window.location.protocol}//${window.location.hostname}:8001` : "";
+    }
+    function getStoredToken() { return localStorage.getItem("access_token"); }
+    function setStoredToken(t) { localStorage.setItem("access_token", t); }
+
+    function renderLogin() {
+      app.innerHTML = `
+        <div class="card">
+          <h1>Sign In</h1>
+          <form id="login-form">
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" required />
+            </div>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input type="password" id="password" name="password" required />
+            </div>
+            <button type="submit" role="button">Sign in</button>
+            <div id="login-error" class="error" style="display: none;"></div>
+          </form>
+        </div>
+      `;
+      document.getElementById("login-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+        const errEl = document.getElementById("login-error");
+        try {
+          const res = await fetch(`${getApiUrl()}/api/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!res.ok) {
+            errEl.textContent = "Invalid email or password";
+            errEl.style.display = "block";
+            return;
+          }
+          const data = await res.json();
+          setStoredToken(data.access_token);
+          window.location.pathname = "/appointments";
+        } catch (err) {
+          errEl.textContent = "Network error connecting to API";
+          errEl.style.display = "block";
+        }
+      });
+    }
+
+    async function renderAppointmentsList() {
+      app.innerHTML = `
+        <div class="card">
+          <h1>Appointments Dashboard</h1>
+          <div data-testid="appointment-list" id="list-container">
+            <p>Loading appointments...</p>
+          </div>
+        </div>
+      `;
+      const token = getStoredToken();
+      const listContainer = document.getElementById("list-container");
+      try {
+        const res = await fetch(`${getApiUrl()}/api/appointments`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          listContainer.innerHTML = '<p class="error">Failed to load appointments</p>';
+          return;
+        }
+        const data = await res.json();
+        if (!data || data.length === 0) {
+          listContainer.innerHTML = '<p>No appointments scheduled yet.</p>';
+        } else {
+          listContainer.innerHTML = '<ul>' + data.map(a => `<li><a href="/appointments/${a.id}">${a.patient_name} - ${a.status}</a></li>`).join('') + '</ul>';
+        }
+      } catch (err) {
+        listContainer.innerHTML = '<p class="error">API connection error</p>';
+      }
+    }
+
+    async function renderAppointmentDetail(id) {
+      app.innerHTML = `
+        <div class="card">
+          <h1>Appointment Details</h1>
+          <div id="detail-container">
+            <p>Loading appointment ${id}...</p>
+          </div>
+        </div>
+      `;
+      const token = getStoredToken();
+      const container = document.getElementById("detail-container");
+      try {
+        const res = await fetch(`${getApiUrl()}/api/appointments/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          container.innerHTML = '<div data-testid="appointment-not-found" class="error">Appointment not found or inaccessible.</div>';
+          return;
+        }
+        const appt = await res.json();
+        container.innerHTML = `
+          <div data-testid="appointment-detail" class="detail-box">
+            <h3>Patient: ${appt.patient_name}</h3>
+            <p><strong>Appointment ID:</strong> ${appt.id}</p>
+            <p><strong>Time:</strong> ${appt.starts_at}</p>
+            <p><strong>Status:</strong> ${appt.status}</p>
+            ${appt.reason ? `<p><strong>Reason:</strong> ${appt.reason}</p>` : ''}
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = '<div data-testid="appointment-not-found" class="error">Error fetching appointment</div>';
+      }
+    }
+
+    function router() {
+      const path = window.location.pathname;
+      if (path === "/login" || path === "/") {
+        renderLogin();
+      } else if (path === "/appointments") {
+        renderAppointmentsList();
+      } else if (path.startsWith("/appointments/")) {
+        const id = path.replace("/appointments/", "").trim();
+        renderAppointmentDetail(id);
+      } else {
+        renderLogin();
+      }
+    }
+    window.addEventListener("DOMContentLoaded", router);
+  </script>
+</body>
+</html>
+"""
+
 
 @web_app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    from fastapi.responses import FileResponse
-
-    return FileResponse(dist_dir / "index.html")
+    index_file = dist_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    return HTMLResponse(content=FALLBACK_SPA_HTML)
 
 
 @asynccontextmanager
