@@ -1,0 +1,238 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SpecNetra Demo Appointment API",
+    "version": "1.0.0",
+    "description": "Authorized target demo application API for SpecNetra testing framework"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Readiness health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" }
+                  },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "loginUser",
+        "summary": "Authenticate user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": { "type": "string" },
+                    "token_type": { "type": "string" },
+                    "expires_in": { "type": "integer" }
+                  },
+                  "required": ["access_token", "token_type"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"]
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "summary": "Get authenticated user profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current user profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "email": { "type": "string" },
+                    "role": { "type": "string" }
+                  },
+                  "required": ["email", "role"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/appointments": {
+      "post": {
+        "operationId": "createAppointment",
+        "summary": "Create an appointment",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "patient_name": { "type": "string", "minLength": 1 },
+                  "starts_at": { "type": "string" },
+                  "reason": { "type": "string" }
+                },
+                "required": ["patient_name", "starts_at"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Appointment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "patient_name": { "type": "string" },
+                    "starts_at": { "type": "string" },
+                    "status": { "type": "string" }
+                  },
+                  "required": ["id", "patient_name", "starts_at", "status"]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "422": { "description": "Unprocessable Entity" }
+        }
+      },
+      "get": {
+        "operationId": "listAppointments",
+        "summary": "List appointments",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of appointments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "patient_name": { "type": "string" },
+                      "starts_at": { "type": "string" },
+                      "status": { "type": "string" }
+                    },
+                    "required": ["id", "patient_name", "starts_at", "status"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appointments/{appointment_id}": {
+      "get": {
+        "operationId": "getAppointment",
+        "summary": "Get appointment by ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointment details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "patient_name": { "type": "string" },
+                    "starts_at": { "type": "string" },
+                    "status": { "type": "string" }
+                  },
+                  "required": ["id", "patient_name", "starts_at", "status"]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

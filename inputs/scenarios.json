@@ -1,0 +1,52 @@
+{
+  "scenarios": [
+    {
+      "id": "SC-001",
+      "name": "Valid user login",
+      "requirement_ids": ["REQ-001"],
+      "priority": "P0",
+      "operations": [
+        { "kind": "api", "operation_id": "loginUser" },
+        { "kind": "ui", "action": "verify_dashboard_visible" }
+      ]
+    },
+    {
+      "id": "SC-002",
+      "name": "Appointment creation via API",
+      "requirement_ids": ["REQ-002"],
+      "priority": "P0",
+      "dependencies": ["SC-001"],
+      "operations": [
+        { "kind": "api", "operation_id": "createAppointment" }
+      ]
+    },
+    {
+      "id": "SC-003",
+      "name": "API-created appointment visible in UI",
+      "requirement_ids": ["REQ-002"],
+      "priority": "P0",
+      "dependencies": ["SC-002"],
+      "operations": [
+        { "kind": "ui", "action": "verify_appointment_visible" }
+      ]
+    },
+    {
+      "id": "SC-004",
+      "name": "Invalid login is rejected",
+      "requirement_ids": ["REQ-001"],
+      "priority": "P1",
+      "operations": [
+        { "kind": "api", "operation_id": "loginUser", "expect_failure": true }
+      ]
+    },
+    {
+      "id": "SC-005",
+      "name": "Invalid appointment data is rejected",
+      "requirement_ids": ["REQ-003"],
+      "priority": "P1",
+      "operations": [
+        { "kind": "api", "operation_id": "createAppointment", "invalid_body": true }
+      ]
+    }
+  ]
+}
