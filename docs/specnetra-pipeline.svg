@@ -1,0 +1,37 @@
+<svg width="920" height="250" viewBox="0 0 920 250" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SpecNetra AI test pipeline</title>
+  <desc id="desc">Requirements flow through planning, API and browser execution, and evidence-backed reporting.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="920" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071A2B"/>
+      <stop offset="0.52" stop-color="#0B3142"/>
+      <stop offset="1" stop-color="#092E35"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#7DE2D1"/>
+      <stop offset="1" stop-color="#FFCF70"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" stroke="#A9E6DF" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="920" height="250" rx="18" fill="url(#bg)"/>
+  <rect width="920" height="250" rx="18" fill="url(#grid)"/>
+  <path d="M54 125H866" stroke="#7DE2D1" stroke-opacity=".22" stroke-width="2" stroke-dasharray="7 9"/>
+  <circle cx="54" cy="125" r="5" fill="#FFCF70" filter="url(#glow)">
+    <animate attributeName="cx" values="54;866;54" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <g transform="translate(62 72)"><rect width="145" height="106" rx="12" fill="#0D3D4B" stroke="#7DE2D1" stroke-opacity=".45"/><text x="72" y="37" fill="#FFCF70" font-size="12" font-weight="700">01</text><text x="72" y="62" fill="white" font-size="15" font-weight="700">INPUTS</text><text x="72" y="84" fill="#B9D7D6" font-size="11">requirements + API</text><text x="72" y="99" fill="#B9D7D6" font-size="11">+ scenarios</text></g>
+    <g transform="translate(270 72)"><rect width="145" height="106" rx="12" fill="#0D3D4B" stroke="#7DE2D1" stroke-opacity=".45"/><text x="72" y="37" fill="#FFCF70" font-size="12" font-weight="700">02</text><text x="72" y="62" fill="white" font-size="15" font-weight="700">PLAN</text><text x="72" y="84" fill="#B9D7D6" font-size="11">validated test</text><text x="72" y="99" fill="#B9D7D6" font-size="11">graph</text></g>
+    <g transform="translate(478 72)"><rect width="145" height="106" rx="12" fill="#0D3D4B" stroke="#7DE2D1" stroke-opacity=".45"/><text x="72" y="37" fill="#FFCF70" font-size="12" font-weight="700">03</text><text x="72" y="62" fill="white" font-size="15" font-weight="700">EXECUTE</text><text x="72" y="84" fill="#B9D7D6" font-size="11">HTTPX +</text><text x="72" y="99" fill="#B9D7D6" font-size="11">Playwright</text></g>
+    <g transform="translate(686 72)"><rect width="172" height="106" rx="12" fill="#0D3D4B" stroke="#FFCF70" stroke-opacity=".7"/><text x="86" y="37" fill="#FFCF70" font-size="12" font-weight="700">04</text><text x="86" y="62" fill="white" font-size="15" font-weight="700">EVIDENCE</text><text x="86" y="84" fill="#B9D7D6" font-size="11">verdict + screenshots</text><text x="86" y="99" fill="#B9D7D6" font-size="11">+ RCA</text></g>
+  </g>
+  <circle cx="207" cy="125" r="3" fill="#7DE2D1"><animate attributeName="opacity" values=".25;1;.25" dur="1.5s" repeatCount="indefinite"/></circle>
+  <circle cx="415" cy="125" r="3" fill="#7DE2D1"><animate attributeName="opacity" values="1;.25;1" dur="1.5s" repeatCount="indefinite"/></circle>
+  <circle cx="623" cy="125" r="3" fill="#7DE2D1"><animate attributeName="opacity" values=".25;1;.25" dur="1.5s" repeatCount="indefinite"/></circle>
+</svg>

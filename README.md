@@ -1,67 +1,65 @@
 # SpecNetra AI
 
-> **From Requirements to Reliable Tests**  
-> Autonomous Multi-Agent Software Testing Framework
+<p align="center">
+  <img src="docs/specnetra-pipeline.svg" alt="SpecNetra AI execution pipeline" width="920" />
+</p>
 
----
+<p align="center"><strong>From requirements to reliable tests.</strong><br />
+An autonomous, evidence-first testing framework for API and browser workflows.</p>
 
-## 1. Overview
+<p align="center">
+  <a href="https://github.com/Sarthak702-droid/SpecNetra-AI/actions"><img src="https://img.shields.io/github/actions/workflow/status/Sarthak702-droid/SpecNetra-AI/ci.yml?label=CI&style=flat-square" alt="CI status" /></a>
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12 or newer" />
+  <img src="https://img.shields.io/badge/Playwright-Chromium-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="Playwright Chromium" />
+</p>
 
-SpecNetra AI transforms application requirements (`requirements.md`), API definitions (`openapi.json`), and user scenarios (`scenarios.json`) into deterministic, executable tests without manual test script authoring.
+## Why SpecNetra?
 
-It coordinates four specialized logical agents:
-1. **Planner / Supervisor Agent** — Interprets specifications and constructs structured test plans.
-2. **API Testing Agent** — Executes deterministic HTTP requests and validates response contracts with HTTPX.
-3. **UI Testing Agent** — Automates browser workflows and validates element rendering with Playwright.
-4. **Evaluator / RCA Agent** — Correlates cross-layer execution evidence and performs Root Cause Analysis.
+SpecNetra turns three ordinary inputs into executable, explainable verification:
 
----
-
-## 2. Key Features
-
-- **Cross-Layer State Sharing:** Dynamically passes backend resource IDs (e.g. `appointment_id`) from API creation directly to browser UI verification.
-- **Strictly Grounded Pass/Fail:** Deterministic assertion rules determine test verdicts; the AI never invents results or self-heals broken business logic into PASS.
-- **Bounded Error Recovery:** Handles network timeouts and rate limits with exponential backoff and safe semantic locator fallbacks.
-- **Evidence-Backed RCA:** Captures screenshots upon UI assertion failures and generates root cause hypotheses.
-- **Security-First Execution:** Enforces allowlisted target hosts, scheme filters, and sensitive token redaction.
-
----
-
-## 3. Quick Start (Single Command with Docker Compose)
-
-### Prerequisites
-- Docker & Docker Compose
-
-### 1. Configure Environment
-```bash
-cp .env.example .env
+```text
+requirements.md + openapi.json + scenarios.json
+                         |
+                         v
+       validated plan -> API/UI execution -> evidence-backed report
 ```
 
-### 2. Run SpecNetra in Healthy Mode
+AI is used for planning and analysis. Deterministic executors decide whether a test passes or fails. That boundary keeps results reproducible and makes defects easier to trust.
+
+## What It Does
+
+| Capability | Result |
+| --- | --- |
+| Multi-agent planning | Converts requirements and scenarios into a validated `TestPlan`. |
+| API contract testing | Sends real HTTP requests with HTTPX and validates OpenAPI response schemas. |
+| Browser verification | Drives Chromium with Playwright using semantic locator fallbacks. |
+| Cross-layer state | Carries runtime IDs such as `appointment_id` from API setup into UI checks. |
+| Bounded recovery | Retries only eligible transient failures with strict idempotency guards. |
+| Evidence and RCA | Captures failure screenshots and separates verified facts from hypotheses. |
+| Security controls | Allowlisted hosts, HTTP scheme checks, and sensitive value redaction. |
+
+## Run It
+
+### Docker Compose
+
+Prerequisite: Docker with Compose.
+
 ```bash
 docker compose up --build
 ```
-This builds and starts:
-- `demo-api`: FastAPI backend on port 8001
-- `demo-web`: Vite/TypeScript frontend on port 3000
-- `runner`: Executes the SpecNetra test pipeline and writes reports to `./output`
 
-### 3. Run Intentional Bug Detection Demo
-To test defect detection, activate the intentional defect switch:
+This starts the demo API on `:8001`, the web app on `:3000`, and the test runner. Reports are written to `output/`.
+
+To exercise the defect-detection path:
+
 ```bash
 DEMO_BUG_MODE=hide_created_appointment docker compose up --build
 ```
-In this mode:
-- `SMK-002` (API appointment creation) **PASSES** (HTTP 201 + ID returned).
-- `SMK-003` (UI appointment verification) **FAILS** (element not found).
-- A failure screenshot is saved to `output/screenshots/SMK-003.png`.
-- The Evaluator generates an evidence-backed Root Cause Analysis (RCA) hypothesis in `output/report.md`.
 
----
+The API creation check passes, the UI verification check fails, and the runner records the screenshot plus an RCA hypothesis.
 
-## 4. Local Development
+### Local Development
 
-### Setup
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -69,22 +67,17 @@ pip install -e ".[dev]"
 python -m playwright install chromium
 ```
 
-### Run Tests
+Run the full suite or a focused layer:
+
 ```bash
-# Run unit tests
-pytest tests/unit/ -v
-
-# Run integration tests
-pytest tests/integration/ -v
-
-# Run end-to-end tests
-pytest tests/end_to_end/ -v
-
-# Run full test suite
 pytest tests/ -v
+pytest tests/unit/ -v
+pytest tests/integration/ -v
+pytest tests/end_to_end/ -v
 ```
 
-### Run SpecNetra CLI
+Run the pipeline directly:
+
 ```bash
 python -m app.main \
   --requirements inputs/requirements.md \
@@ -92,27 +85,54 @@ python -m app.main \
   --scenarios inputs/scenarios.json
 ```
 
----
+## Execution Model
 
-## 5. Artifacts & Reporting
-
-Every completed execution produces:
+```mermaid
+flowchart LR
+    I[Input bundle] --> V[Input validation]
+    V --> P[Planner / Supervisor]
+    P --> S[Test scheduler]
+    S --> A[API specialist]
+    S --> U[UI specialist]
+    A --> R[Shared run state]
+    U --> R
+    R --> E[Evaluator / RCA]
+    E --> O[Report + evidence]
 ```
+
+The architecture is deliberately conservative: a language model can propose a plan or explain evidence, but it cannot turn a failed assertion into a pass.
+
+## Output Artifacts
+
+```text
 output/
-├── execution_log.json    # Machine-readable execution logs
-├── report.md             # Detailed Markdown report
-├── test_plan.json        # Structured test plan
-└── screenshots/          # Evidence screenshots for UI failures
-    └── SMK-003.png
+├── execution_log.json    # Structured execution events
+├── report.md             # Human-readable result and RCA
+├── test_plan.json        # Validated execution plan
+└── screenshots/          # UI failure evidence
 ```
 
----
+## Project Map
 
-## 6. Continuous Integration (CI)
+| Path | Purpose |
+| --- | --- |
+| `app/agents/` | Planner, API, UI, supervisor, and evaluator agents |
+| `app/core/` | Validation, security, state, recovery, and scheduling |
+| `app/executors/` | Deterministic HTTP and browser execution |
+| `app/reports/` | Reports and root-cause analysis |
+| `demo/` | FastAPI and Vite demo target |
+| `inputs/` | Requirements, OpenAPI, and scenario fixtures |
+| `tests/` | Unit, integration, and end-to-end coverage |
 
-A GitHub Actions workflow is provided in `.github/workflows/ci.yml` running:
-1. **Lint:** Ruff formatting and style check.
-2. **Unit Tests:** Fast unit tests (scheduler, security, assertions, recovery).
-3. **Integration Tests:** API executor and Playwright browser tests.
-4. **E2E Healthy Run:** Complete execution against healthy target.
-5. **E2E Defective Run:** Intentional bug detection, screenshot capture, and artifact uploads.
+## Design Principles
+
+1. AI plans and analyzes; deterministic code executes and judges.
+2. Business assertion failures are immutable and never self-healed.
+3. Recovery is bounded, observable, and guarded by idempotency.
+4. Every important failure should leave inspectable evidence.
+
+More architectural detail is available in [DESIGN.md](DESIGN.md).
+
+## Contributing
+
+Create a focused branch, keep changes covered by the nearest test layer, and run `pytest tests/ -v` before opening a pull request. The CI workflow also checks Ruff and the healthy and defective end-to-end paths.
