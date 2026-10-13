@@ -11,7 +11,7 @@ from app.core.recovery import RetryPolicy, SafetyError, with_retry
 from app.core.state_manager import get_run_state_manager
 from app.core.test_scheduler import SchedulerError, check_dependency_status, order_for_execution
 from app.executors.api_executor import execute_api_step
-from app.executors.browser_executor import execute_ui_step
+from app.executors.ui_engine import create_ui_engine
 from app.models import APIStep, RunState, StepResult, TestResult, UIStep
 
 logger = get_logger(__name__)
@@ -93,7 +93,6 @@ async def execute_tests_node(state: RunState) -> dict[str, Any]:
     ordered_tests = order_for_execution(plan.tests, max_tests=settings.max_tests_per_run)
     run_id = state["run_id"]
     state_manager = get_run_state_manager(run_id)
-    output_dir = Path(settings.output_dir)
 
     test_results: list[TestResult] = []
     evidence_manifest: list[dict[str, Any]] = []
@@ -104,20 +103,23 @@ async def execute_tests_node(state: RunState) -> dict[str, Any]:
         for t in ordered_tests
     )
 
-    playwright_ctx = None
-    browser = None
-    page = None
-
+    ui_engine = None
     if has_ui:
         try:
-            from playwright.async_api import async_playwright
-
-            playwright_ctx = await async_playwright().start()
-            browser = await playwright_ctx.chromium.launch(headless=settings.browser_headless)
-            context = await browser.new_context()
-            page = await context.new_page()
+            hosts = (
+                list(settings.allowed_target_hosts)
+                if isinstance(settings.allowed_target_hosts, list)
+                else [settings.allowed_target_hosts]
+            )
+            ui_engine = create_ui_engine(
+                engine_name=settings.ui_engine,
+                run_id=run_id,
+                headless=settings.browser_headless,
+                allowed_hosts=hosts,
+            )
+            await ui_engine.start()
         except Exception as e:
-            logger.error(f"Failed to launch Playwright browser: {e}")
+            logger.error(f"Failed to launch UI engine: {e}")
             return {
                 "errors": [f"Browser initialization failed: {e}"],
                 "run_phase": "EVALUATING",
@@ -191,7 +193,7 @@ async def execute_tests_node(state: RunState) -> dict[str, Any]:
                                 error_code="STEP_EXECUTION_ERROR",
                             )
 
-                    elif is_ui and page is not None:
+                    elif is_ui and ui_engine is not None:
                         # Safe UI retry policy: only read-only actions are idempotent
                         ui_is_idempotent = step.action in (
                             "navigate",
@@ -199,6 +201,7 @@ async def execute_tests_node(state: RunState) -> dict[str, Any]:
                             "assert_text",
                             "assert_url",
                             "screenshot",
+                            "ai_assert",
                         )
                         policy = RetryPolicy(
                             max_retries=test.max_retries,
@@ -206,14 +209,12 @@ async def execute_tests_node(state: RunState) -> dict[str, Any]:
                         )
                         try:
                             step_res, retries = await with_retry(
-                                execute_ui_step,
+                                ui_engine.execute_step,
                                 policy,
                                 step,
-                                page,
-                                state_manager,
-                                output_dir,
                                 test.test_id,
-                                step_index=idx,
+                                idx,
+                                state_manager,
                             )
                             total_retries += retries
                         except SafetyError as se:
@@ -277,10 +278,11 @@ async def execute_tests_node(state: RunState) -> dict[str, Any]:
                     )
                 )
         finally:
-            if browser:
-                await browser.close()
-            if playwright_ctx:
-                await playwright_ctx.stop()
+            if ui_engine:
+                try:
+                    await ui_engine.stop()
+                except Exception as e:
+                    logger.warning(f"Error closing UI engine: {e}")
 
     return {
         "test_results": test_results,

@@ -28,5 +28,8 @@ output/
 !output/.gitkeep
 node_modules/
 demo/web/dist/
+browser-worker/dist/
+browser-worker/node_modules/
+browser-worker/output/
 .pytest_cache/
 .ruff_cache/

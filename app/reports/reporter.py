@@ -62,6 +62,7 @@ def generate_markdown_report(state: RunState, finished_at: str) -> str:
         f"- **Target Environment:** `{settings.target_environment}`",
         f"- **API Base URL:** `{settings.api_base_url}`",
         f"- **Web Base URL:** `{settings.web_base_url}`",
+        f"- **UI Engine:** `{settings.ui_engine}`",
         f"- **Configured Demo Bug Mode:** `{settings.demo_bug_mode or 'None (Healthy Target)'}`",
         "",
         "## 3. Execution Summary",

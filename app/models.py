@@ -63,9 +63,14 @@ class UIStep(BaseModel):
         "assert_text",
         "assert_url",
         "screenshot",
+        "ai_act",
+        "ai_assert",
+        "ai_wait_for",
+        "ai_query",
     ]
     params: dict[str, Any] = Field(default_factory=dict)
     candidate_locators: list[dict[str, Any]] = Field(default_factory=list)
+    engine: Literal["deterministic", "midscene", "auto"] = "auto"
 
 
 class TestCase(BaseModel):
@@ -103,6 +108,8 @@ class StepResult(BaseModel):
     recovered_by: str | None = None
     console_logs: list[str] = Field(default_factory=list)
     network_errors: list[str] = Field(default_factory=list)
+    engine: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class TestResult(BaseModel):

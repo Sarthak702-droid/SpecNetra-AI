@@ -24,6 +24,10 @@ ALLOWED_UI_ACTIONS = {
     "assert_text",
     "assert_url",
     "screenshot",
+    "ai_act",
+    "ai_assert",
+    "ai_wait_for",
+    "ai_query",
 }
 
 
@@ -121,7 +125,7 @@ def validate_test_plan(plan: TestPlan, bundle: InputBundle) -> list[str]:
                     errors.append(
                         f"Test '{test.test_id}' step {step_idx}: unsupported UI action '{step.action}'"
                     )
-                if step.action in ("assert_visible", "assert_text", "assert_url"):
+                if step.action in ("assert_visible", "assert_text", "assert_url", "ai_assert"):
                     has_assertion = True
                 if step.action == "navigate":
                     raw_url = step.params.get("url", "")
@@ -433,10 +437,10 @@ You are an expert test planning agent for SpecNetra AI.
 Generate a structured TestPlan Pydantic model for the given requirements, OpenAPI operations, and scenarios.
 Rules:
 1. Every test must reference valid requirement IDs.
-2. Every test must have at least one executable check (assert_status, assert_field, assert_json_schema, assert_visible, assert_text, or assert_url).
+2. Every test must have at least one executable check (assert_status, assert_field, assert_json_schema, assert_visible, assert_text, assert_url, or ai_assert).
 3. Every test must contain at least 1 step. Zero-step tests are strictly prohibited.
 4. Steps must be strictly limited to 'api_request' or 'ui_action'.
-5. UI actions must only be one of: 'navigate', 'fill_by_label', 'click_by_role', 'assert_visible', 'assert_text', 'assert_url', 'screenshot'.
+5. UI actions must only be one of: 'navigate', 'fill_by_label', 'click_by_role', 'assert_visible', 'assert_text', 'assert_url', 'screenshot', 'ai_act', 'ai_assert', 'ai_wait_for', 'ai_query'.
 6. Do NOT hallucinate shell commands or external tools.
 """,
         )

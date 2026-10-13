@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     output_dir: str = "output"
     target_environment: str = "staging"
     demo_bug_mode: str = ""
+    ui_engine: str = "python"  # "python" or "midscene"
+    midscene_worker_port: int = 0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

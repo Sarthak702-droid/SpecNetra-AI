@@ -1,0 +1,25 @@
+{
+  "name": "specnetra-browser-worker",
+  "version": "1.0.0",
+  "description": "SpecNetra AI Node.js / Midscene Browser Worker",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/server.ts",
+    "smoke": "tsx src/smoke.ts",
+    "test": "node --test --import tsx tests/*.test.ts"
+  },
+  "dependencies": {
+    "@midscene/web": "^1.15.3",
+    "@playwright/test": "^1.64.0",
+    "dotenv": "^16.4.7",
+    "playwright": "^1.49.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
