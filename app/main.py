@@ -31,10 +31,27 @@ async def main_async():
     configure_logging()
     args = parse_args()
 
+    from urllib.parse import urlparse
+
     if args.api_url:
         settings.api_base_url = args.api_url
+        api_host = urlparse(args.api_url).hostname
+        if api_host:
+            if isinstance(settings.allowed_target_hosts, list):
+                if api_host not in settings.allowed_target_hosts:
+                    settings.allowed_target_hosts.append(api_host)
+            else:
+                settings.allowed_target_hosts = [settings.allowed_target_hosts, api_host]
+
     if args.web_url:
         settings.web_base_url = args.web_url
+        web_host = urlparse(args.web_url).hostname
+        if web_host:
+            if isinstance(settings.allowed_target_hosts, list):
+                if web_host not in settings.allowed_target_hosts:
+                    settings.allowed_target_hosts.append(web_host)
+            else:
+                settings.allowed_target_hosts = [settings.allowed_target_hosts, web_host]
 
     run_id = f"run_{uuid.uuid4().hex[:8]}"
     started_at = datetime.now(UTC).isoformat()

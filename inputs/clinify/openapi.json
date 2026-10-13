@@ -1,0 +1,102 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Clinify Health Platform API",
+    "version": "1.0.0",
+    "description": "Standardized OpenAPI specification for Clinify Staging API"
+  },
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "clinifyLogin",
+        "summary": "Authenticate Practitioner",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": { "type": "string" },
+                    "token_type": { "type": "string" }
+                  },
+                  "required": ["access_token"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/v1/appointments": {
+      "get": {
+        "operationId": "listClinifyAppointments",
+        "summary": "List Appointments",
+        "responses": {
+          "200": {
+            "description": "List of scheduled appointments"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createClinifyAppointment",
+        "summary": "Create Appointment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "patient_name": { "type": "string" },
+                  "doctor_id": { "type": "string" },
+                  "slot_time": { "type": "string" }
+                },
+                "required": ["patient_name", "doctor_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Appointment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "appointment_id": { "type": "string" },
+                    "status": { "type": "string" }
+                  },
+                  "required": ["appointment_id"]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    }
+  }
+}

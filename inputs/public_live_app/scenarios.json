@@ -1,0 +1,166 @@
+{
+  "scenarios": [
+    {
+      "id": "SC-001",
+      "name": "Authenticate administrator and acquire token",
+      "requirement_ids": ["REQ-PUB-001"],
+      "priority": "P0",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createToken",
+          "details": {
+            "body": {
+              "username": "admin",
+              "password": "password123"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 200
+              },
+              {
+                "kind": "assert_field",
+                "path": "token",
+                "expected": null
+              }
+            ],
+            "extract": {
+              "token": "session_token"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-002",
+      "name": "Create new booking record with valid payload",
+      "requirement_ids": ["REQ-PUB-002"],
+      "priority": "P0",
+      "dependencies": ["SC-001"],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createBooking",
+          "details": {
+            "body": {
+              "firstname": "Antigravity",
+              "lastname": "Tester",
+              "totalprice": 199,
+              "depositpaid": true,
+              "bookingdates": {
+                "checkin": "2026-12-01",
+                "checkout": "2026-12-05"
+              },
+              "additionalneeds": "Fast Internet"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 200
+              },
+              {
+                "kind": "assert_field",
+                "path": "bookingid",
+                "expected": null
+              },
+              {
+                "kind": "assert_field",
+                "path": "booking.firstname",
+                "expected": "Antigravity"
+              }
+            ],
+            "extract": {
+              "bookingid": "created_booking_id"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-003",
+      "name": "Verify public web portal availability and structure",
+      "requirement_ids": ["REQ-PUB-003"],
+      "priority": "P0",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "ui",
+          "action": "navigate",
+          "details": {
+            "url": "{web_base_url}/"
+          }
+        },
+        {
+          "kind": "ui",
+          "action": "assert_url",
+          "details": {
+            "expected_url": "https://automationintesting.online/"
+          }
+        },
+        {
+          "kind": "ui",
+          "action": "assert_visible",
+          "details": {
+            "selector": "#root-container"
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-004",
+      "name": "Negative authentication rejection with bad credentials",
+      "requirement_ids": ["REQ-PUB-004"],
+      "priority": "P1",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createToken",
+          "expect_failure": true,
+          "details": {
+            "body": {
+              "username": "unauthorized_user",
+              "password": "wrong_password"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 200
+              },
+              {
+                "kind": "assert_field",
+                "path": "reason",
+                "expected": "Bad credentials"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-005",
+      "name": "Negative booking query with non-existent ID",
+      "requirement_ids": ["REQ-PUB-004"],
+      "priority": "P1",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "getBooking",
+          "expect_failure": true,
+          "details": {
+            "path": "/booking/999999999",
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 404
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,10 @@ async def resolve_single_locator(page: Page, params: dict[str, Any]):
         return page.get_by_test_id(params["testid"])
     if params.get("css"):
         return page.locator(params["css"])
+    if params.get("selector"):
+        return page.locator(params["selector"])
+    if params.get("xpath"):
+        return page.locator(f"xpath={params['xpath']}")
     if params.get("text"):
         return page.get_by_text(params["text"])
     raise LocatorResolutionError(f"No valid locator attributes in params: {params}")

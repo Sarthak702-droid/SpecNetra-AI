@@ -27,7 +27,13 @@ def is_allowed_host(url: str) -> bool:
     # Check scheme - only http and https allowed
     if parsed.scheme not in ("http", "https"):
         return False
-    return hostname in settings.allowed_target_hosts
+    api_host = urlparse(settings.api_base_url).hostname
+    web_host = urlparse(settings.web_base_url).hostname
+    return (
+        hostname in settings.allowed_target_hosts
+        or (api_host is not None and hostname == api_host)
+        or (web_host is not None and hostname == web_host)
+    )
 
 
 def assert_allowed_url(url: str) -> None:

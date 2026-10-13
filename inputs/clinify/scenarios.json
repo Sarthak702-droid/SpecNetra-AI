@@ -1,0 +1,143 @@
+{
+  "scenarios": [
+    {
+      "id": "SC-001",
+      "name": "Practitioner authentication on Clinify",
+      "requirement_ids": ["REQ-CLN-001"],
+      "priority": "P0",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "clinifyLogin",
+          "details": {
+            "body": {
+              "email": "doctor@clinify.example",
+              "password": "ValidDoctorPass123!"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 200
+              },
+              {
+                "kind": "assert_field",
+                "path": "access_token",
+                "expected": null
+              }
+            ],
+            "extract": {
+              "access_token": "session_token"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-002",
+      "name": "Schedule new patient appointment",
+      "requirement_ids": ["REQ-CLN-002"],
+      "priority": "P0",
+      "dependencies": ["SC-001"],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createClinifyAppointment",
+          "details": {
+            "body": {
+              "patient_name": "Ramesh Kumar",
+              "doctor_id": "DOC-1001",
+              "slot_time": "2026-11-01T11:00:00Z"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 201
+              },
+              {
+                "kind": "assert_field",
+                "path": "appointment_id",
+                "expected": null
+              }
+            ],
+            "extract": {
+              "appointment_id": "appointment_id"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-003",
+      "name": "Verify scheduled appointments listing",
+      "requirement_ids": ["REQ-CLN-002"],
+      "priority": "P0",
+      "dependencies": ["SC-002"],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "listClinifyAppointments",
+          "details": {
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 200
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-004",
+      "name": "Negative login with invalid doctor password",
+      "requirement_ids": ["REQ-CLN-001"],
+      "priority": "P1",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "clinifyLogin",
+          "expect_failure": true,
+          "details": {
+            "body": {
+              "email": "doctor@clinify.example",
+              "password": "WrongPassword!"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 401
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-005",
+      "name": "Negative appointment creation with missing doctor_id",
+      "requirement_ids": ["REQ-CLN-003"],
+      "priority": "P1",
+      "dependencies": [],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createClinifyAppointment",
+          "invalid_body": true,
+          "details": {
+            "body": {
+              "patient_name": "Missing Doctor"
+            },
+            "assertions": [
+              {
+                "kind": "assert_status",
+                "expected": 422
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

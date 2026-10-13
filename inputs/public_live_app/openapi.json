@@ -1,0 +1,145 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Public Live Booking Platform API",
+    "version": "1.0.0",
+    "description": "Production OpenAPI 3.0 specification for restful-booker public test API"
+  },
+  "servers": [
+    {
+      "url": "https://restful-booker.herokuapp.com"
+    }
+  ],
+  "paths": {
+    "/auth": {
+      "post": {
+        "operationId": "createToken",
+        "summary": "Create Authentication Token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["username", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful or error details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "reason": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/booking": {
+      "post": {
+        "operationId": "createBooking",
+        "summary": "Create a new booking",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "firstname": { "type": "string" },
+                  "lastname": { "type": "string" },
+                  "totalprice": { "type": "integer" },
+                  "depositpaid": { "type": "boolean" },
+                  "bookingdates": {
+                    "type": "object",
+                    "properties": {
+                      "checkin": { "type": "string" },
+                      "checkout": { "type": "string" }
+                    },
+                    "required": ["checkin", "checkout"]
+                  },
+                  "additionalneeds": { "type": "string" }
+                },
+                "required": ["firstname", "lastname", "totalprice", "depositpaid", "bookingdates"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booking successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookingid": { "type": "integer" },
+                    "booking": { "type": "object" }
+                  },
+                  "required": ["bookingid", "booking"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/booking/{id}": {
+      "get": {
+        "operationId": "getBooking",
+        "summary": "Get booking by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "firstname": { "type": "string" },
+                    "lastname": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Booking not found"
+          }
+        }
+      }
+    },
+    "/ping": {
+      "get": {
+        "operationId": "pingHealth",
+        "summary": "Service health check",
+        "responses": {
+          "201": {
+            "description": "Service is healthy and responsive"
+          }
+        }
+      }
+    }
+  }
+}

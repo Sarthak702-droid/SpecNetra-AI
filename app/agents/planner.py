@@ -148,22 +148,17 @@ def build_generic_api_step(
     details: dict[str, Any] | None = None,
     openapi_doc: dict[str, Any] | None = None,
 ) -> APIStep:
-    """Builds a deterministic APIStep directly from an OpenAPI operation contract."""
+    """Builds a deterministic APIStep directly from an OpenAPI operation contract or scenario details."""
     details = details or {}
-    method = op_spec["method"]
-    path = op_spec["path"]
-
-    # Determine expected status
-    responses = op_spec.get("responses", {})
-    success_status = 200
-    for code in (200, 201, 204):
-        if str(code) in responses:
-            success_status = code
-            break
+    method = details.get("method") or op_spec["method"]
+    path = details.get("path") or op_spec["path"]
+    headers = details.get("headers", {})
 
     # Body derivation
     body = details.get("body")
-    if body is None and method in ("POST", "PUT", "PATCH"):
+    if invalid_body and body is None:
+        body = {"invalid_field": None}
+    elif body is None and method in ("POST", "PUT", "PATCH"):
         req_content = op_spec.get("requestBody", {}).get("content", {})
         json_schema = req_content.get("application/json", {}).get("schema", {})
         if json_schema:
@@ -171,34 +166,26 @@ def build_generic_api_step(
         else:
             body = {}
 
-    if invalid_body:
-        body = {"invalid_field": None}
-        assertions = [{"kind": "assert_status", "expected": 422}]
-        return APIStep(
-            operation_id=op_id,
-            method=method,  # type: ignore
-            path=path,
-            body=body,
-            assertions=assertions,
-            expect_failure=True,
-        )
-
-    if expect_failure:
-        assertions = [{"kind": "assert_status", "expected": 401}]
-        return APIStep(
-            operation_id=op_id,
-            method=method,  # type: ignore
-            path=path,
-            body=body,
-            assertions=assertions,
-            expect_failure=True,
-        )
-
-    assertions = [{"kind": "assert_status", "expected": success_status}]
-    if openapi_doc:
-        schema = extract_response_schema(openapi_doc, op_id, success_status)
-        if schema:
-            assertions.append({"kind": "assert_json_schema", "schema": schema})
+    # Assertions derivation
+    if details.get("assertions"):
+        assertions = details["assertions"]
+    elif invalid_body:
+        assertions = [{"kind": "assert_status", "expected": details.get("expect_status", 422)}]
+    elif expect_failure:
+        assertions = [{"kind": "assert_status", "expected": details.get("expect_status", 401)}]
+    else:
+        responses = op_spec.get("responses", {})
+        success_status = details.get("expect_status", 200)
+        if "expect_status" not in details:
+            for code in (200, 201, 204):
+                if str(code) in responses:
+                    success_status = code
+                    break
+        assertions = [{"kind": "assert_status", "expected": success_status}]
+        if openapi_doc:
+            schema = extract_response_schema(openapi_doc, op_id, success_status)
+            if schema:
+                assertions.append({"kind": "assert_json_schema", "schema": schema})
 
     extract = details.get("extract", {})
     return APIStep(
@@ -206,8 +193,10 @@ def build_generic_api_step(
         method=method,  # type: ignore
         path=path,
         body=body,
+        headers=headers,
         assertions=assertions,
         extract=extract,
+        expect_failure=expect_failure or invalid_body,
     )
 
 
@@ -220,6 +209,8 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
     tests: list[TestCase] = []
     openapi_ops = extract_openapi_operations(bundle.openapi_doc)
 
+    is_demo_clinic = "Appointment API" in bundle.openapi_doc.get("info", {}).get("title", "")
+
     for sc in bundle.scenarios:
         steps: list[APIStep | UIStep] = []
         is_api = any(op.kind == "api" for op in sc.operations)
@@ -229,8 +220,8 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
         for op in sc.operations:
             if op.kind == "api":
                 op_id = op.operation_id or ""
-                # Check for recognized appointment demo operations
-                if op_id == "loginUser":
+                # Check for recognized appointment demo operations ONLY if running the local demo clinic
+                if is_demo_clinic and op_id == "loginUser" and not op.details:
                     if op.expect_failure:
                         steps.append(
                             APIStep(
@@ -274,7 +265,7 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                                 ],
                             )
                         )
-                elif op_id == "createAppointment":
+                elif is_demo_clinic and op_id == "createAppointment" and not op.details:
                     if op.invalid_body:
                         steps.append(
                             APIStep(
@@ -332,7 +323,18 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
 
             elif op.kind == "ui":
                 action = op.action or ""
-                if action == "verify_dashboard_visible":
+                if action in ALLOWED_UI_ACTIONS:
+                    params = dict(op.details) if op.details else {}
+                    if action == "navigate" and "url" in params:
+                        raw_u = str(params["url"])
+                        if raw_u.startswith("/"):
+                            params["url"] = f"{settings.web_base_url.rstrip('/')}{raw_u}"
+                        elif "{web_base_url}" in raw_u:
+                            params["url"] = raw_u.replace(
+                                "{web_base_url}", settings.web_base_url.rstrip("/")
+                            )
+                    steps.append(UIStep(action=action, params=params))  # type: ignore
+                elif is_demo_clinic and action == "verify_dashboard_visible":
                     steps.extend(
                         [
                             UIStep(
@@ -352,7 +354,7 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                             UIStep(action="assert_visible", params={"testid": "appointment-list"}),
                         ]
                     )
-                elif action == "verify_appointment_visible":
+                elif is_demo_clinic and action == "verify_appointment_visible":
                     steps.extend(
                         [
                             UIStep(
@@ -371,8 +373,6 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                             ),
                         ]
                     )
-                elif action in ALLOWED_UI_ACTIONS:
-                    steps.append(UIStep(action=action, params=op.details))  # type: ignore
                 else:
                     raise PlanningFailedError(
                         f"Unsupported UI action '{action}' in scenario '{sc.id}'"
