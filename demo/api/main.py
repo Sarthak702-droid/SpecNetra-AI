@@ -4,9 +4,9 @@ from demo.api.routers.appointments import router as appointments_router
 from demo.api.routers.auth import router as auth_router
 
 app = FastAPI(
-    title="SpecNetra Demo Target API",
+    title="SpecNetra Target Service",
     version="1.0.0",
-    description="Authorized appointment-management target API",
+    description="Healthcare appointment management — SpecNetra demo target",
 )
 
 app.add_middleware(

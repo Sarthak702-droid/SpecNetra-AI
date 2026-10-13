@@ -1,21 +1,22 @@
 # SpecNetra AI
 
 <p align="center">
-  <img src="docs/specnetra-pipeline.svg" alt="SpecNetra AI execution pipeline" width="920" />
+  <img src="docs/specnetra-pipeline.svg" alt="SpecNetra AI verification pipeline" width="920" />
 </p>
 
-<p align="center"><strong>From requirements to reliable tests.</strong><br />
-An autonomous, evidence-first multi-agent testing framework for API and browser workflows.</p>
+<p align="center"><strong>From requirements to reliable tests — autonomously.</strong><br />
+An evidence-first multi-agent verification framework for API and browser workflows.</p>
 
 <p align="center">
   <a href="https://github.com/Sarthak702-droid/SpecNetra-AI/actions"><img src="https://img.shields.io/github/actions/workflow/status/Sarthak702-droid/SpecNetra-AI/ci.yml?label=CI&style=flat-square" alt="CI status" /></a>
-  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12 or newer" />
-  <img src="https://img.shields.io/badge/Playwright-Chromium-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="Playwright Chromium" />
+  <img src="https://img.shields.io/badge/Python-3.12%2B-06b6d4?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" />
+  <img src="https://img.shields.io/badge/Playwright-Chromium-a78bfa?style=flat-square&logo=playwright&logoColor=white" alt="Playwright" />
+  <img src="https://img.shields.io/badge/Midscene-Visual%20AI-06b6d4?style=flat-square" alt="Midscene" />
 </p>
 
-## Why SpecNetra?
+## The Problem We Solve
 
-SpecNetra turns three ordinary inputs into executable, explainable verification:
+Manual test authoring doesn't scale. SpecNetra takes three ordinary inputs and produces executable, explainable verification — without writing test scripts by hand.
 
 ```text
 requirements.md + openapi.json + scenarios.json
@@ -24,37 +25,38 @@ requirements.md + openapi.json + scenarios.json
        validated plan -> API/UI execution -> evidence-backed report
 ```
 
-AI plans and analyzes tests; deterministic execution engines decide whether a test passes or fails. That boundary keeps results reproducible and makes defects trustworthy.
+AI plans and analyzes; deterministic execution engines decide pass or fail. That boundary keeps results reproducible and makes defects trustworthy.
 
-## What It Does
+## Capabilities at a Glance
 
-| Capability | Result |
+| Capability | What It Delivers |
 | --- | --- |
-| Multi-agent planning | Converts requirements and scenarios into a semantically validated `TestPlan`. |
-| Target independence | Dynamically derives operations, methods, schemas, and assertions from any OpenAPI spec. |
-| API contract testing | Sends real HTTP requests with HTTPX and validates OpenAPI response schemas. |
-| Browser verification | Drives Chromium with Playwright using selector self-healing and diagnostics. |
-| Cross-layer state | Carries runtime IDs (`appointment_id`, etc.) from API creation into UI checks. |
-| Dependency blocking | Enforces topological test dependencies; prerequisites failures mark dependents as `BLOCKED`. |
-| Bounded recovery | Retries transient failures with safe idempotency guards (mutations protected). |
-| Evidence and RCA | Captures failure screenshots, console logs, network errors, and hypothesis RCA. |
-| Security controls | Allowlisted target hosts, HTTP scheme verification, and secret redaction. |
+| **Multi-agent planning** | Converts requirements and scenarios into a semantically validated `TestPlan`. |
+| **Target independence** | Derives operations, methods, schemas, and assertions from any OpenAPI spec. |
+| **API contract testing** | Sends real HTTP requests via HTTPX and validates response schemas. |
+| **Browser verification** | Drives Chromium with Playwright — selector self-healing and diagnostics included. |
+| **Visual AI assertions** | Optional Midscene SDK integration for semantic `ai_assert`, `ai_act`, `ai_query`. |
+| **Cross-layer state** | Carries runtime IDs from API creation into UI checks. |
+| **Dependency blocking** | Enforces topological dependencies; prerequisite failures mark dependents `BLOCKED`. |
+| **Bounded recovery** | Retries transient failures with idempotency guards (mutations protected). |
+| **Evidence & RCA** | Captures failure screenshots, console logs, network errors, and hypothesis RCA. |
+| **Security controls** | Allowlisted hosts, HTTP scheme verification, and secret redaction. |
 
-## Run It
+## How It Works
 
-### One-Command Docker Compose
+SpecNetra orchestrates a pipeline of specialized agents through LangGraph. Each agent handles one concern — planning, API execution, browser execution, evaluation, or reporting — and communicates through typed state updates. The supervisor enforces topological execution order and cascading failure logic.
 
-Healthy demonstration run:
+## Quick Start
+
+### Docker Compose (One Command)
+
 ```bash
+# Healthy target — all tests should pass
 docker compose up --build --abort-on-container-exit --exit-code-from runner
-```
-All services (`demo-api`, `demo-web`, `runner`) boot cleanly. Tests pass and reports are written to `output/` with exit code `0`.
 
-Intentionally defective demonstration run:
-```bash
+# Defective target — SpecNetra catches the injected bug
 DEMO_BUG_MODE=hide_created_appointment docker compose up --build --abort-on-container-exit --exit-code-from runner
 ```
-SpecNetra detects the injected appointment-visibility defect in `SMK-003`, captures screenshot evidence, writes evidence-grounded RCA, and exits with code `1` (proving the defect was caught).
 
 ### Local Development
 
@@ -67,32 +69,33 @@ python -m playwright install chromium
 
 Run test layers:
 ```bash
-pytest tests/unit/ -v               # Core models, assertions, scheduler, recovery, security
-pytest tests/integration/ -v        # HTTPX API, Playwright browser, secondary target
+pytest tests/unit/ -v               # Models, assertions, scheduler, recovery, security
+pytest tests/integration/ -v        # HTTPX API, Playwright browser, Midscene bridge
 pytest tests/end_to_end/ -v         # Full healthy and defective E2E runs
 ```
 
-Run against an arbitrary target (e.g. secondary inventory service):
+Run against any target:
 ```bash
 python -m app.main \
-  --requirements inputs/demo_inventory/requirements.md \
-  --openapi inputs/demo_inventory/openapi.json \
-  --scenarios inputs/demo_inventory/scenarios.json \
-  --api-url http://127.0.0.1:8001
+  --requirements inputs/requirements.md \
+  --openapi inputs/openapi.json \
+  --scenarios inputs/scenarios.json \
+  --api-url http://127.0.0.1:8001 \
+  --web-url http://127.0.0.1:3000
 ```
 
 ## Execution Model
 
 ```mermaid
 flowchart TD
-    I[Input Bundle] --> V[Input Validation & Allowlist]
-    V --> P[AI / OpenAPI Dynamic Planner]
-    P --> SV[Semantic Plan Validator]
-    SV --> S[Dependency-Aware Supervisor]
-    S --> E[Unified Execution: API + UI Steps]
-    E --> EV[Evaluator & Evidence-Grounded RCA]
-    EV --> R[Isolated Report & Execution Logs]
-    R --> C[Run State Release]
+    I["Input Bundle"] --> V["Validation & Allowlist"]
+    V --> P["AI / OpenAPI Planner"]
+    P --> SV["Semantic Plan Validator"]
+    SV --> S["Dependency-Aware Supervisor"]
+    S --> E["Unified Execution: API + UI"]
+    E --> EV["Evaluator & Evidence-Grounded RCA"]
+    EV --> R["Report & Execution Logs"]
+    R --> C["State Release"]
 ```
 
 ## Output Artifacts
@@ -100,12 +103,12 @@ flowchart TD
 ```text
 output/
 ├── <run_id>/             # Isolated run directory
-│   ├── execution_log.json # Detailed step-level events, durations, retries, logs
-│   ├── report.md          # Human-readable result, coverage matrix, and RCA
+│   ├── execution_log.json # Step-level events, durations, retries
+│   ├── report.md          # Verification report with coverage matrix & RCA
 │   └── test_plan.json     # Validated execution plan
-├── execution_log.json     # Latest execution log pointer
-├── report.md              # Latest report pointer
-├── test_plan.json         # Latest plan pointer
+├── execution_log.json     # Latest execution log
+├── report.md              # Latest report
+├── test_plan.json         # Latest plan
 └── screenshots/           # Failure screenshots
 ```
 
@@ -114,19 +117,24 @@ output/
 | Path | Purpose |
 | --- | --- |
 | `app/agents/` | Planner, API, UI, supervisor, and evaluator nodes |
-| `app/core/` | Validation, security, state manager, recovery, and test scheduling |
-| `app/executors/` | Deterministic HTTPX and Playwright executors with self-healing |
-| `app/reports/` | Evidence-grade reports, telemetry, and root-cause analysis |
-| `demo/` | Authorized FastAPI target (`demo/api`) and Vite SPA (`demo/web`) |
-| `inputs/` | Canonical appointment demo and secondary inventory demo inputs |
-| `tests/` | Unit, integration, and end-to-end test suites |
+| `app/core/` | Validation, security, state manager, recovery, scheduling |
+| `app/executors/` | HTTPX, Playwright, and Midscene worker executors |
+| `app/reports/` | Evidence-grade reports, telemetry, and RCA |
+| `browser-worker/` | Node.js/TypeScript Midscene visual AI bridge |
+| `demo/` | FastAPI target (`demo/api`) and Vite SPA (`demo/web`) |
+| `inputs/` | Canonical demo and secondary inventory inputs |
+| `tests/` | Unit, integration, and end-to-end suites |
 
 ## Design Principles
 
 1. **AI plans and hypothesizes; deterministic code executes and judges.**
-2. **Business assertions are immutable and never self-healed.**
-3. **Dependencies are strictly respected; failing prerequisites mark dependents as `BLOCKED`.**
-4. **Selector self-healing evaluates candidate locators and records recovery evidence.**
-5. **Every test failure captures inspectable evidence (screenshots, console logs, network errors).**
+2. **Business assertions are immutable — never self-healed.**
+3. **Dependencies strictly respected; failing prerequisites cascade to `BLOCKED`.**
+4. **Selector self-healing evaluates candidates and records recovery evidence.**
+5. **Every failure captures inspectable evidence: screenshots, console logs, network errors.**
 
-For architectural depth, see [DESIGN.md](DESIGN.md).
+For architectural details, see [DESIGN.md](DESIGN.md).
+
+---
+
+<p align="center"><sub>Built by <a href="https://github.com/Sarthak702-droid">Sarthak Tripathy</a></sub></p>

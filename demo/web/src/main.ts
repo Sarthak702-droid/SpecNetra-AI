@@ -12,18 +12,26 @@ function setStoredToken(token: string) {
   localStorage.setItem("access_token", token);
 }
 
+function statusBadgeClass(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "confirmed") return "status-confirmed";
+  if (s === "completed") return "status-completed";
+  if (s === "cancelled") return "status-cancelled";
+  return "status-scheduled";
+}
+
 function renderLogin() {
   app.innerHTML = `
     <div class="card">
-      <h1>Sign In</h1>
+      <h1>Welcome Back</h1>
       <form id="login-form">
         <div class="form-group">
           <label for="email">Email</label>
-          <input type="email" id="email" name="email" required />
+          <input type="email" id="email" name="email" placeholder="you@clinic.com" required />
         </div>
         <div class="form-group">
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" required />
+          <input type="password" id="password" name="password" placeholder="••••••••" required />
         </div>
         <button type="submit" role="button">Sign in</button>
         <div id="login-error" class="error" style="display: none;"></div>
@@ -64,9 +72,9 @@ function renderLogin() {
 async function renderAppointmentsList() {
   app.innerHTML = `
     <div class="card">
-      <h1>Appointments Dashboard</h1>
+      <h1>Patient Schedule</h1>
       <div data-testid="appointment-list" id="list-container">
-        <p>Loading appointments...</p>
+        <p style="color: #64748b;">Loading appointments...</p>
       </div>
     </div>
   `;
@@ -84,11 +92,11 @@ async function renderAppointmentsList() {
     }
     const data = await res.json();
     if (!data || data.length === 0) {
-      listContainer.innerHTML = `<p>No appointments scheduled yet.</p>`;
+      listContainer.innerHTML = `<p style="color: #64748b;">No appointments scheduled yet.</p>`;
     } else {
       listContainer.innerHTML = `
         <ul>
-          ${data.map((a: any) => `<li><a href="/appointments/${a.id}">${a.patient_name} - ${a.status}</a></li>`).join("")}
+          ${data.map((a: any) => `<li><a href="/appointments/${a.id}">${a.patient_name}</a> <span class="status-badge ${statusBadgeClass(a.status)}">${a.status}</span></li>`).join("")}
         </ul>
       `;
     }
@@ -100,9 +108,10 @@ async function renderAppointmentsList() {
 async function renderAppointmentDetail(id: string) {
   app.innerHTML = `
     <div class="card">
-      <h1>Appointment Details</h1>
+      <a href="/appointments" class="back-link">← Back to schedule</a>
+      <h1>Visit Record</h1>
       <div id="detail-container">
-        <p>Loading appointment ${id}...</p>
+        <p style="color: #64748b;">Loading appointment ${id}...</p>
       </div>
     </div>
   `;
@@ -130,7 +139,7 @@ async function renderAppointmentDetail(id: string) {
         <h3>Patient: ${appt.patient_name}</h3>
         <p><strong>Appointment ID:</strong> ${appt.id}</p>
         <p><strong>Time:</strong> ${appt.starts_at}</p>
-        <p><strong>Status:</strong> ${appt.status}</p>
+        <p><strong>Status:</strong> <span class="status-badge ${statusBadgeClass(appt.status)}">${appt.status}</span></p>
         ${appt.reason ? `<p><strong>Reason:</strong> ${appt.reason}</p>` : ""}
       </div>
     `;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# SpecNetra AI - Interactive Testing Runner
+# SpecNetra AI · Interactive Demo Runner
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
@@ -9,7 +9,7 @@ cd "$PROJECT_ROOT"
 VENV_DIR="${VIRTUAL_ENV:-$PROJECT_ROOT/.venv}"
 PYTHON_BIN="$VENV_DIR/bin/python"
 
-echo "[setup] Checking Python environment..."
+echo "  ◉ Checking Python environment..."
 if [ -z "${VIRTUAL_ENV:-}" ] && [ ! -x "$PYTHON_BIN" ]; then
     python3 -m venv "$VENV_DIR"
 fi
@@ -28,7 +28,7 @@ if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
 fi
 
 if ! "$PYTHON_BIN" -c "import pydantic, uvicorn, httpx, playwright" >/dev/null 2>&1; then
-    echo "[setup] Installing SpecNetra dependencies..."
+    echo "  ◉ Installing SpecNetra dependencies..."
     "$PYTHON_BIN" -m pip install --upgrade pip
     "$PYTHON_BIN" -m pip install -e ".[dev]"
 fi
@@ -48,16 +48,16 @@ async def check_chromium() -> None:
 asyncio.run(check_chromium())
 PY
 then
-    echo "[setup] Installing the Playwright Chromium browser..."
+    echo "  ◉ Installing Playwright Chromium..."
     "$PYTHON_BIN" -m playwright install chromium
 fi
 
 MODE="${1:-healthy}"
 HEADLESS="${2:-false}"
 
-echo "=========================================="
-echo " SpecNetra AI — Interactive Demo Runner"
-echo "=========================================="
+echo "╔══════════════════════════════════════════════╗"
+echo "║   SpecNetra AI · Interactive Demo v1.0       ║"
+echo "╚══════════════════════════════════════════════╝"
 
 if [ "$MODE" == "--bug" ] || [ "$MODE" == "bug" ]; then
     echo "Mode: [DEFECTIVE / BUG DETECTION]"
@@ -76,7 +76,7 @@ else
 fi
 
 echo ""
-echo "[1/3] Starting target Demo API (port 8001) & Web Frontend (port 3000)..."
+echo "  ◉ Starting Demo API (port 8001) & Web (port 3000)..."
 
 "$PYTHON_BIN" -c "
 import asyncio, uvicorn
@@ -96,7 +96,7 @@ trap "kill $SERVER_PID 2>/dev/null || true" EXIT
 
 sleep 2
 
-echo "[2/3] Launching SpecNetra AI Autonomous Testing Pipeline..."
+echo "  ◉ Launching SpecNetra AI pipeline..."
 echo ""
 
 set +e
@@ -110,12 +110,12 @@ EXIT_CODE=$?
 set -e
 
 echo ""
-echo "[3/3] Execution finished (Exit Code: $EXIT_CODE)."
-echo "Generated Artifacts:"
-echo "  - Report:      output/report.md"
-echo "  - JSON Log:    output/execution_log.json"
+echo "╔══════════════════════════════════════════════╗"
+echo "║  Execution finished (Exit Code: $EXIT_CODE)"
+echo "║  ✓ output/report.md"
+echo "║  ✓ output/execution_log.json"
 if [ -f output/screenshots/SMK-003.png ]; then
-    echo "  - Screenshot:  output/screenshots/SMK-003.png"
+    echo "║  ✓ output/screenshots/SMK-003.png"
 fi
-echo "=========================================="
+echo "╚══════════════════════════════════════════════╝"
 exit $EXIT_CODE

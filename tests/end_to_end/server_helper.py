@@ -26,21 +26,33 @@ FALLBACK_SPA_HTML = """<!doctype html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpecNetra Demo Hospital</title>
+  <title>SpecNetra · Autonomous QA</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; background: #f8fafc; color: #1e293b; margin: 0; }
-    .card { max-width: 500px; margin: 40px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-    h1 { margin-top: 0; }
-    .form-group { margin-bottom: 16px; }
-    label { display: block; margin-bottom: 6px; font-weight: 500; }
-    input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
-    button { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; }
-    button:hover { background: #1d4ed8; }
-    .error { color: #dc2626; margin-top: 8px; font-weight: 500; }
-    .detail-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 6px; margin-top: 16px; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 0; margin: 0; background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); color: #e2e8f0; min-height: 100vh; }
+    .brand-header { text-align: center; padding: 40px 0 4px; font-size: 32px; font-weight: 800; background: linear-gradient(90deg, #06b6d4, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.5px; }
+    .brand-sub { text-align: center; font-size: 11px; color: #64748b; margin-bottom: 32px; letter-spacing: 3px; text-transform: uppercase; font-weight: 500; }
+    .card { max-width: 460px; margin: 0 auto; background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(16px); padding: 36px; border-radius: 20px; border: 1px solid rgba(6, 182, 212, 0.12); box-shadow: 0 0 60px rgba(6, 182, 212, 0.06), 0 8px 32px rgba(0,0,0,0.4); }
+    h1 { margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f1f5f9; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    input { width: 100%; padding: 12px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; border-radius: 10px; color: #e2e8f0; font-size: 15px; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
+    input:focus { outline: none; border-color: #06b6d4; box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12); }
+    button { width: 100%; padding: 13px; background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; letter-spacing: 0.3px; }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(6, 182, 212, 0.3); }
+    .error { color: #f59e0b; margin-top: 10px; font-weight: 600; font-size: 14px; }
+    .detail-box { background: rgba(6, 182, 212, 0.05); border: 1px solid rgba(6, 182, 212, 0.15); padding: 20px; border-radius: 14px; margin-top: 20px; }
+    .detail-box p { margin: 6px 0; font-size: 14px; color: #cbd5e1; }
+    .detail-box strong { color: #94a3b8; font-weight: 600; }
+    a { color: #22d3ee; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    ul li { padding: 12px 16px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.5); border-radius: 10px; border: 1px solid rgba(51, 65, 85, 0.5); }
   </style>
 </head>
 <body>
+  <div class="brand-header">SpecNetra</div>
+  <div class="brand-sub">Autonomous QA Intelligence</div>
   <div id="app"></div>
   <script>
     const app = document.getElementById("app");
@@ -53,7 +65,7 @@ FALLBACK_SPA_HTML = """<!doctype html>
     function renderLogin() {
       app.innerHTML = `
         <div class="card">
-          <h1>Sign In</h1>
+          <h1>Welcome Back</h1>
           <form id="login-form">
             <div class="form-group">
               <label for="email">Email</label>
@@ -97,9 +109,9 @@ FALLBACK_SPA_HTML = """<!doctype html>
     async function renderAppointmentsList() {
       app.innerHTML = `
         <div class="card">
-          <h1>Appointments Dashboard</h1>
+          <h1>Patient Schedule</h1>
           <div data-testid="appointment-list" id="list-container">
-            <p>Loading appointments...</p>
+            <p style="color: #64748b;">Loading appointments...</p>
           </div>
         </div>
       `;
@@ -115,7 +127,7 @@ FALLBACK_SPA_HTML = """<!doctype html>
         }
         const data = await res.json();
         if (!data || data.length === 0) {
-          listContainer.innerHTML = '<p>No appointments scheduled yet.</p>';
+          listContainer.innerHTML = '<p style="color: #64748b;">No appointments scheduled yet.</p>';
         } else {
           listContainer.innerHTML = '<ul>' + data.map(a => `<li><a href="/appointments/${a.id}">${a.patient_name} - ${a.status}</a></li>`).join('') + '</ul>';
         }
@@ -127,9 +139,9 @@ FALLBACK_SPA_HTML = """<!doctype html>
     async function renderAppointmentDetail(id) {
       app.innerHTML = `
         <div class="card">
-          <h1>Appointment Details</h1>
+          <h1>Visit Record</h1>
           <div id="detail-container">
-            <p>Loading appointment ${id}...</p>
+            <p style="color: #64748b;">Loading appointment ${id}...</p>
           </div>
         </div>
       `;
@@ -146,7 +158,7 @@ FALLBACK_SPA_HTML = """<!doctype html>
         const appt = await res.json();
         container.innerHTML = `
           <div data-testid="appointment-detail" class="detail-box">
-            <h3>Patient: ${appt.patient_name}</h3>
+            <h3 style="margin:0 0 8px;font-size:16px;color:#e2e8f0;">Patient: ${appt.patient_name}</h3>
             <p><strong>Appointment ID:</strong> ${appt.id}</p>
             <p><strong>Time:</strong> ${appt.starts_at}</p>
             <p><strong>Status:</strong> ${appt.status}</p>

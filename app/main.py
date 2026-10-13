@@ -56,11 +56,15 @@ async def main_async():
     run_id = f"run_{uuid.uuid4().hex[:8]}"
     started_at = datetime.now(UTC).isoformat()
 
-    print("[INFO] SpecNetra AI initialized")
-    print(f"[INFO] Run ID: {run_id}")
-    print(f"[INFO] Target API: {settings.api_base_url}")
-    print(f"[INFO] Target Web: {settings.web_base_url}")
-    print(f"[INFO] Bug Mode: {settings.demo_bug_mode or 'None'}")
+    print()
+    print("╔══════════════════════════════════════════════╗")
+    print("║    SpecNetra AI · Autonomous QA Engine v1.0  ║")
+    print("╚══════════════════════════════════════════════╝")
+    print()
+    print(f"  ◉ Run ID      {run_id}")
+    print(f"  ◉ API Target  {settings.api_base_url}")
+    print(f"  ◉ Web Target  {settings.web_base_url}")
+    print(f"  ◉ Bug Mode    {settings.demo_bug_mode or 'None (healthy)'}")
     print()
 
     initial_state: RunState = {
@@ -83,54 +87,53 @@ async def main_async():
         "finished_at": None,
     }
 
-    print("[INFO] Validating input files...")
+    print("  ◉ Validating input files...")
     final_state = await graph.ainvoke(initial_state)
 
     if final_state.get("run_phase") == "VALIDATION_FAILED":
-        print("[FAIL] Input validation failed:")
+        print("  ✗ Input validation failed:")
         for err in final_state.get("errors", []):
-            print(f"  - {err}")
+            print(f"    - {err}")
         sys.exit(2)
 
-    print("[PASS] Inputs valid")
+    print("  ✓ Inputs validated")
 
     if final_state.get("run_phase") == "PLANNING_FAILED":
-        print("[FAIL] Test planning failed:")
+        print("  ✗ Test planning failed:")
         for err in final_state.get("errors", []):
-            print(f"  - {err}")
+            print(f"    - {err}")
         sys.exit(2)
 
     plan = final_state.get("test_plan")
     test_count = len(plan.tests) if plan else 0
-    print("[INFO] Generating test plan...")
-    print(f"[PASS] {test_count} test cases generated")
+    print("  ◉ Generating test plan...")
+    print(f"  ✓ {test_count} test cases generated")
     print()
 
-    print("[INFO] Executing tests...")
+    print("  ◉ Executing tests...")
     results = final_state.get("test_results", [])
     for r in results:
-        status_tag = f"[{r.outcome}]"
-        print(f"{status_tag} {r.test_id}: {r.observed}")
+        icon = "✓" if r.outcome == "PASSED" else "✗" if r.outcome in ("FAILED", "ERROR") else "⊘"
+        print(f"    {icon} {r.test_id}: {r.observed}")
 
     print()
-    print("[INFO] Evaluating failures and Root Cause Analysis...")
+    print("  ◉ Evaluating failures & RCA...")
     eval_res = final_state.get("evaluation") or {}
-    print(f"[INFO] RCA status: {eval_res.get('overall_verdict', 'COMPLETED')}")
+    print(f"  ◉ RCA status: {eval_res.get('overall_verdict', 'COMPLETED')}")
 
-    print("[INFO] Generating report and evidence logs...")
+    print("  ◉ Generating report & evidence logs...")
     output_dir = Path(settings.output_dir)
-    print(f"[PASS] {output_dir / 'report.md'} created")
-    print(f"[PASS] {output_dir / 'execution_log.json'} created")
+    print(f"  ✓ {output_dir / 'report.md'}")
+    print(f"  ✓ {output_dir / 'execution_log.json'}")
 
     passed_count = sum(1 for r in results if r.outcome == "PASSED")
     failed_count = sum(1 for r in results if r.outcome in ("FAILED", "ERROR"))
     blocked_count = sum(1 for r in results if r.outcome == "BLOCKED")
 
     print()
-    print("Execution completed")
-    print(f"Passed: {passed_count}")
-    print(f"Failed: {failed_count}")
-    print(f"Blocked: {blocked_count}")
+    print("╔══════════════════════════════════════════════╗")
+    print(f"║  Results: {passed_count} passed · {failed_count} failed · {blocked_count} blocked")
+    print("╚══════════════════════════════════════════════╝")
 
     # Return exit code 1 if any test failed, errored, or blocked; 0 only if all passed
     sys.exit(1 if (failed_count > 0 or blocked_count > 0 or passed_count == 0) else 0)
