@@ -1,10 +1,7 @@
 const app = document.getElementById("app")!;
 
 function getApiUrl(): string {
-  // Use current host or port 8001
-  return window.location.port === "3000"
-    ? `${window.location.protocol}//${window.location.hostname}:8001`
-    : "";
+  return "";
 }
 
 function getStoredToken(): string | null {

@@ -16,14 +16,8 @@ class LocatorResolutionError(Exception):
     pass
 
 
-async def resolve_locator(page: Page, params: dict[str, Any]):
-    """
-    FR-006 Locator Priority:
-    1. Accessible role and accessible name.
-    2. Associated form labels.
-    3. Stable data-testid attributes.
-    4. Configured CSS selectors.
-    """
+async def resolve_single_locator(page: Page, params: dict[str, Any]):
+    """Resolves a single locator strategy from parameters."""
     if params.get("role"):
         name = params.get("name")
         return page.get_by_role(params["role"], name=name)
@@ -33,7 +27,57 @@ async def resolve_locator(page: Page, params: dict[str, Any]):
         return page.get_by_test_id(params["testid"])
     if params.get("css"):
         return page.locator(params["css"])
+    if params.get("text"):
+        return page.get_by_text(params["text"])
     raise LocatorResolutionError(f"No valid locator attributes in params: {params}")
+
+
+async def resolve_locator(page: Page, params: dict[str, Any]):
+    return await resolve_single_locator(page, params)
+
+
+async def resolve_locator_with_healing(
+    page: Page,
+    params: dict[str, Any],
+    candidate_locators: list[dict[str, Any]] | None = None,
+) -> tuple[Any, str | None]:
+    """
+    Self-healing locator resolver:
+    1. Tries primary locator.
+    2. If not immediately found, tries candidate_locators in order.
+    3. Tries inferred attribute fallbacks (e.g. data-testid attribute, name selector).
+    Returns (locator, recovered_by_reason).
+    """
+    candidates: list[dict[str, Any]] = [params]
+    if candidate_locators:
+        candidates.extend(candidate_locators)
+
+    # Inferred fallbacks
+    if params.get("testid"):
+        t_id = params["testid"]
+        if not any(c.get("css") == f"[data-testid='{t_id}']" for c in candidates):
+            candidates.append({"css": f"[data-testid='{t_id}']"})
+        if not any(c.get("css") == f"#{t_id}" for c in candidates):
+            candidates.append({"css": f"#{t_id}"})
+    if params.get("label"):
+        lbl = params["label"].lower()
+        if not any(c.get("css") == f"input[name='{lbl}']" for c in candidates):
+            candidates.append({"css": f"input[name='{lbl}']"})
+        if not any(c.get("css") == f"input[id='{lbl}']" for c in candidates):
+            candidates.append({"css": f"input[id='{lbl}']"})
+
+    for idx, cand in enumerate(candidates):
+        try:
+            loc = await resolve_single_locator(page, cand)
+            count = await loc.count()
+            if count > 0:
+                recovered_by = None if idx == 0 else f"Recovered via candidate {idx}: {cand}"
+                return loc, recovered_by
+        except Exception:
+            continue
+
+    # Fall back to primary locator to allow standard wait_for / timeout exception handling
+    return await resolve_single_locator(page, params), None
 
 
 async def capture_screenshot(page: Page, output_dir: Path, test_id: str) -> str:
@@ -57,6 +101,19 @@ async def execute_ui_step(
 ) -> StepResult:
     start_time = time.monotonic()
     timeout_ms = settings.test_timeout_ms
+    recovered_by: str | None = None
+    console_logs: list[str] = []
+    network_errors: list[str] = []
+
+    def on_console(msg: Any):
+        if msg.type in ("error", "warning"):
+            console_logs.append(f"[{msg.type}] {msg.text}")
+
+    def on_req_failed(req: Any):
+        network_errors.append(f"Failed request: {req.method} {req.url} ({req.failure})")
+
+    page.on("console", on_console)
+    page.on("requestfailed", on_req_failed)
 
     try:
         if step.action == "navigate":
@@ -78,16 +135,28 @@ async def execute_ui_step(
                 raise
 
         elif step.action == "fill_by_label":
-            loc = await resolve_locator(page, step.params)
+            loc, rec = await resolve_locator_with_healing(
+                page, step.params, getattr(step, "candidate_locators", None)
+            )
+            if rec:
+                recovered_by = rec
             value = step.params.get("value", "")
             await loc.fill(value, timeout=timeout_ms)
 
         elif step.action == "click_by_role":
-            loc = await resolve_locator(page, step.params)
+            loc, rec = await resolve_locator_with_healing(
+                page, step.params, getattr(step, "candidate_locators", None)
+            )
+            if rec:
+                recovered_by = rec
             await loc.click(timeout=timeout_ms)
 
         elif step.action == "assert_visible":
-            loc = await resolve_locator(page, step.params)
+            loc, rec = await resolve_locator_with_healing(
+                page, step.params, getattr(step, "candidate_locators", None)
+            )
+            if rec:
+                recovered_by = rec
             # Try waiting for visibility within timeout
             try:
                 await loc.wait_for(state="visible", timeout=timeout_ms)
@@ -102,10 +171,16 @@ async def execute_ui_step(
                     duration_ms=duration_ms,
                     error_code="UI_ASSERTION_FAILED",
                     evidence_ids=evidence,
+                    console_logs=list(console_logs),
+                    network_errors=list(network_errors),
                 )
 
         elif step.action == "assert_text":
-            loc = await resolve_locator(page, step.params)
+            loc, rec = await resolve_locator_with_healing(
+                page, step.params, getattr(step, "candidate_locators", None)
+            )
+            if rec:
+                recovered_by = rec
             expected = step.params.get("expected", "")
             # Replace placeholder variables like {appointment_id}
             if "{" in expected and "}" in expected:
@@ -127,6 +202,8 @@ async def execute_ui_step(
                         duration_ms=(time.monotonic() - start_time) * 1000.0,
                         error_code="UI_ASSERTION_FAILED",
                         evidence_ids=evidence,
+                        console_logs=list(console_logs),
+                        network_errors=list(network_errors),
                     )
             except Exception as e:
                 screenshot_rel = await capture_screenshot(page, output_dir, test_id)
@@ -138,6 +215,8 @@ async def execute_ui_step(
                     duration_ms=(time.monotonic() - start_time) * 1000.0,
                     error_code="UI_ASSERTION_FAILED",
                     evidence_ids=evidence,
+                    console_logs=list(console_logs),
+                    network_errors=list(network_errors),
                 )
 
         elif step.action == "assert_url":
@@ -154,6 +233,8 @@ async def execute_ui_step(
                     duration_ms=(time.monotonic() - start_time) * 1000.0,
                     error_code="UI_ASSERTION_FAILED",
                     evidence_ids=evidence,
+                    console_logs=list(console_logs),
+                    network_errors=list(network_errors),
                 )
 
         elif step.action == "screenshot":
@@ -166,14 +247,22 @@ async def execute_ui_step(
                 observed="Screenshot captured",
                 duration_ms=duration_ms,
                 evidence_ids=evidence,
+                console_logs=list(console_logs),
+                network_errors=list(network_errors),
             )
 
         duration_ms = (time.monotonic() - start_time) * 1000.0
+        observed_msg = f"UI step {step.action} completed successfully"
+        if recovered_by:
+            observed_msg += f" ({recovered_by})"
         return StepResult(
             step_index=step_index,
             outcome="PASSED",
-            observed=f"UI step {step.action} completed successfully",
+            observed=observed_msg,
             duration_ms=duration_ms,
+            recovered_by=recovered_by,
+            console_logs=list(console_logs),
+            network_errors=list(network_errors),
         )
 
     except RecoverableError:
@@ -189,4 +278,6 @@ async def execute_ui_step(
             duration_ms=duration_ms,
             error_code="BROWSER_EXECUTION_ERROR",
             evidence_ids=evidence,
+            console_logs=list(console_logs),
+            network_errors=list(network_errors),
         )

@@ -2,157 +2,95 @@
 
 **Product Name:** SpecNetra AI  
 **Tagline:** From Requirements to Reliable Tests  
-**Version:** 1.0 (MVP)  
-**Architecture:** Python Modular Monolith  
+**Version:** 1.0 (Audited & Verified Release)  
+**Architecture:** Python Modular Monolith with LangGraph Orchestration  
 
 ---
 
 ## 1. Executive Summary & Core Decisions
 
-SpecNetra AI transforms software requirements (`requirements.md`), API specifications (`openapi.json`), and user scenarios (`scenarios.json`) into deterministic, executable tests without requiring manual script authoring.
+SpecNetra AI ingests requirements (`requirements.md`), API contracts (`openapi.json`), and test scenarios (`scenarios.json`) to autonomously plan, semantically validate, and deterministically execute end-to-end tests across API and browser layers without manual script authoring.
 
 ### Fundamental Architectural Principle
-> **AI plans and analyzes tests; deterministic execution engines determine test results.**
+> **AI plans and hypothesizes; deterministic execution engines and immutable assertions decide outcomes.**
 
-1. **Python Modular Monolith over Microservices:** Agents communicate through typed LangGraph state updates rather than network calls. This eliminates inter-service latency, token overhead, and distributed failure modes.
-2. **Deterministic Execution:** Real requests are dispatched via **HTTPX** (API) and browser workflows via **Playwright** (Chromium). PASS/FAIL verdicts are strictly computed by deterministic assertion rules. LLMs are never permitted to guess or self-heal failed business assertions into PASS.
-3. **Bounded Resilience:** Recovers only from narrowly defined transient errors (network timeouts, rate limits, UI rendering race conditions) with exponential backoff and safe semantic locator fallbacks.
-4. **Cross-Layer State Sharing:** Resource identifiers generated at runtime (such as `appointment_id`) are safely transferred from backend API creation to browser verification within an isolated per-run namespace.
+1. **Python Modular Monolith:** Agents communicate through typed LangGraph state updates rather than inter-service network calls. This guarantees zero distributed race conditions, rapid execution, and complete reproducibility.
+2. **Deterministic Verdicts:** Requests are dispatched via **HTTPX** (API) and browser automation via **Playwright** (Chromium). Verdicts (`PASSED`, `FAILED`, `ERROR`, `BLOCKED`) are governed strictly by deterministic assertion rules. LLMs are never permitted to alter assertions to force a false PASS.
+3. **Unified Dependency-Aware Execution:** Tests execute in topological dependency order. Dependent tests are automatically marked **BLOCKED** if prerequisite tests fail or encounter errors.
+4. **Target Independence:** Operation contracts (methods, paths, parameters, schemas, responses) are derived directly from OpenAPI specifications. SpecNetra tests unseen arbitrary targets without application-specific Python code edits.
+5. **Selector Self-Healing:** Elements support ordered candidate locators. When a selector changes in the DOM, semantically equivalent fallbacks recover the step and log recovery evidence.
+6. **Safe UI Retries:** Read-only checks (`navigate`, `assert_visible`, `assert_text`, `assert_url`, `screenshot`) are treated as idempotent, while mutating actions (`click_by_role`, `fill_by_label`) are strictly protected against blind retries.
+7. **Run Isolation & Evidence Completeness:** Test artifacts are written to isolated directories (`output/<run_id>/`), accompanied by step-level execution logs, network/console diagnostics, and full lifecycle state release.
 
 ---
 
 ## 2. Multi-Agent Architecture & LangGraph State Machine
 
-SpecNetra coordinates four specialized logical agents through LangGraph:
-
+```mermaid
+flowchart TD
+    Start([START]) --> InputValidator[1. Input Validator & Allowlist Check]
+    InputValidator -->|Valid| Planner[2. Dynamic Planner: AI OpenAPI-driven or Fixture]
+    InputValidator -->|Invalid| EarlyReport[Failure Artifact Generator]
+    
+    Planner --> SemanticValidator[2b. Semantic Plan Validator]
+    SemanticValidator -->|Invalid| EarlyReport
+    SemanticValidator -->|Valid| SupervisorLoop[3. Unified Dependency-Aware Supervisor]
+    
+    subgraph Execution ["Unified Causal Step Execution"]
+        SupervisorLoop --> CheckDeps{Check Prerequisite Tests}
+        CheckDeps -->|Prereqs Failed| MarkBlocked[Mark Test BLOCKED]
+        CheckDeps -->|Prereqs Passed| ExecTest[Execute Steps in Chronological Sequence]
+        ExecTest --> StepType{Step Kind}
+        StepType -->|API Step| APIExec[API Specialist: HTTPX + Post-Success Extract]
+        StepType -->|UI Step| UIExec[UI Specialist: Playwright + Safe Retries + Locator Healing]
+        APIExec --> NextStep{More Steps in Test?}
+        UIExec --> NextStep
+        NextStep -->|Yes| ExecTest
+        NextStep -->|No| FinalizeTest[Record Test Outcome & Full Step Timeline]
+        MarkBlocked --> NextTest{More Tests in Plan?}
+        FinalizeTest --> NextTest
+        NextTest -->|Yes| SupervisorLoop
+    end
+    
+    NextTest -->|All Tests Evaluated| Evaluator[4. Evaluator & Evidence-Grounded RCA]
+    Evaluator --> Reporter[5. Reporter: Markdown + execution_log.json + Run Isolation]
+    EarlyReport --> Reporter
+    Reporter --> CleanState[6. Release Run State & Lifecycle Cleanup]
+    CleanState --> EndNode([END])
 ```
-                  INPUT FILES
-             (requirements.md, openapi.json, scenarios.json)
-                      |
-                      v
-                INPUT VALIDATOR
-                      |
-                      v
-              PLANNER / SUPERVISOR
-                      |
-                      v
-               STRUCTURED TEST PLAN
-                      |
-                      v
-                TEST SCHEDULER (Topological Sort)
-                      |
-             +--------+--------+
-             |                 |
-             v                 v
-        API SPECIALIST    UI SPECIALIST
-          (HTTPX)          (Playwright)
-             |                 |
-             +--------+--------+
-                      |
-                      v
-               SHARED RUN STATE
-           (appointment_id, tokens)
-                      |
-                      v
-              EVALUATOR / RCA
-                      |
-                      v
-                 FINAL REPORT
-         (report.md, execution_log.json, screenshots)
-```
-
-### State Transitions
-
-```
-CREATED -> VALIDATING -> PLANNING -> EXECUTING -> EVALUATING -> COMPLETED
-               |              |            |
-               v              v            v
-       VALIDATION_FAILED PLANNING_FAILED EXECUTION_ERROR
-```
-
-- A completed test run where defects are detected remains `COMPLETED` in lifecycle, while the `overall_outcome` is recorded as `FAILED`.
 
 ---
 
-## 3. Agent Roles and Boundaries
+## 3. Core Subsystems and Contracts
 
-### Agent A: Supervisor & Planner (`app/agents/supervisor.py`, `app/agents/planner.py`)
-- **Inputs:** Validated `InputBundle` (requirements, OpenAPI, scenarios).
-- **Processing:** Analyzes observable behaviors, maps scenarios to requirement IDs, and constructs a Pydantic-validated `TestPlan`.
-- **Modes:** Autonomous AI planning via Pydantic AI (`output_type=TestPlan`) with automatic fallback to deterministic fixture planning for repeatable offline verification.
-- **Constraints:** Never invents unverified behaviors or generates executable shell/Python commands.
+### 3.1 Input Validator & Allowlist Security
+- **Requirements Parser:** Ingests markdown files with alphanumeric requirement identifiers (`REQ-XXX`).
+- **OpenAPI Validator:** Validates schema structure using `openapi_spec_validator`.
+- **Target Host Security:** Enforces an explicit allowlist (`ALLOWED_TARGET_HOSTS`). Disallowed hosts or untrusted navigation targets trigger immediate security rejections.
 
-### Agent B: API Specialist (`app/agents/api_specialist.py`, `app/executors/api_executor.py`)
-- **Inputs:** `APIStep` specifications, headers, schemas, assertions.
-- **Processing:** Async HTTP execution via `httpx.AsyncClient`. Asserts HTTP status codes, validates JSON responses against OpenAPI response schemas via `jsonschema`, and extracts generated identifiers (e.g. `appointment_id`).
-- **Constraints:** Calls only allowlisted target hosts; non-idempotent operations are never retried blindly.
+### 3.2 Dynamic Planner & Semantic Validation
+- **OpenAPI Inspection:** Derives HTTP methods, paths, parameters, schemas, and response contracts directly from the target OpenAPI specification.
+- **AI Mode (`PLAN_MODE=ai`):** Leverages OpenAI `gpt-4o-mini` with structured Pydantic models.
+- **Semantic Validator:** Rejects empty (zero-step) tests, unsupported actions, non-existent endpoints, or tests lacking verifiable assertions before execution begins.
+- **Zero-Hardcoding Demonstration:** Validated against both the healthcare appointment demo and the secondary warehouse inventory management service.
 
-### Agent C: UI Specialist (`app/agents/ui_specialist.py`, `app/executors/browser_executor.py`)
-- **Inputs:** `UIStep` browser actions, target URLs, expected selectors and text.
-- **Processing:** Controls headless Chromium via Playwright. Resolves elements via semantic locator priorities (Accessible Role > Form Label > TestID > CSS). Takes full-page screenshots on assertion failures.
-- **Constraints:** Separate assertions from selectors; never mutates expectations.
+### 3.3 Unified Dependency-Aware Supervisor
+- **Topological Ordering:** Computes execution sequence from scenario dependency graphs.
+- **Cascading Block Logic:** If prerequisite test `A` fails or errors, dependent test `B` transitions directly to `BLOCKED` with detailed dependency reasoning.
+- **Mixed Ordered Workflows:** Executes API setup, browser verification, and backend confirmation in strict chronological order within a single unified timeline.
 
-### Agent D: Evaluator & RCA (`app/agents/evaluator.py`, `app/reports/rca.py`)
-- **Inputs:** Actual test outcomes, durations, error codes, screenshots, and requirement maps.
-- **Processing:** Synthesizes observed failure evidence into Root Cause Analysis (RCA) hypotheses with confidence ratings and recommended debugging steps.
-- **Constraints:** Distinguishes verified observations from hypotheses; never alters pass/fail verdicts.
+### 3.4 API & Browser Executors
+- **Transactional State Commit:** Tokens and resource IDs (e.g. `appointment_id`) are committed to `RunStateManager` only after all step assertions pass.
+- **Strict Response Assertions:** Missing or malformed JSON payloads trigger immediate assertion failures when schema or field assertions are specified.
+- **Selector Self-Healing:** If a primary locator fails, ordered candidate locators (`role`, `label`, `testid`, `css`) are evaluated, and self-healing recovery metadata is captured.
+- **Browser Diagnostics:** Actively collects browser console warnings/errors and failed network requests into step-level evidence.
 
----
-
-## 4. Shared Run State & Cross-Layer Contracts
-
-Shared state is maintained in `app/core/state_manager.py` using `RunStateManager`:
-
-```python
-class RunState(TypedDict):
-    run_id: str
-    run_phase: str
-    input_bundle: InputBundle | None
-    test_plan: TestPlan | None
-    resource_refs: ResourceRefs
-    auth_state: AuthState
-    test_results: Annotated[list[TestResult], operator.add]
-    evidence_manifest: Annotated[list[dict], operator.add]
-    errors: Annotated[list[str], operator.add]
-    evaluation: dict | None
-```
-
-### Cross-Layer State Contract (Scenario SC-002 -> SC-003)
-1. **API Specialist** executes `POST /api/appointments`.
-2. Backend returns HTTP 201 with `{"id": "apt_5021", "status": "confirmed"}`.
-3. `api_executor` stores `apt_5021` under key `appointment_id` in `RunStateManager`.
-4. **UI Specialist** reads `appointment_id` and substitutes dynamic URL `/appointments/{appointment_id}` -> `/appointments/apt_5021`.
-5. Playwright verifies the specific appointment detail page.
-
----
-
-## 5. Security Architecture
-
-1. **Host & Scheme Allowlist:** `app/core/security.py` strictly restricts outgoing network connections to configured target hosts (`demo-api`, `demo-web`, `localhost`). Non-HTTP schemes (such as `file://`) are blocked immediately.
-2. **Secret Redaction:** Raw tokens, passwords, and Authorization headers are masked as `[REDACTED]` in all execution logs and reports.
-3. **Prompt Injection Defense:** Input documents and web responses are treated as untrusted data; prompt sanitization strips sensitive authentication keys before LLM invocation.
-
----
-
-## 6. Recovery Policy & Safe Fallbacks
-
-Per FR-008:
-- **Eligible transient errors:** Connection timeouts (`CONN_TIMEOUT`), rate limits (`HTTP_429`), temporary 503, browser rendering timeouts (`BROWSER_NAVIGATION_TIMEOUT`).
-- **Bounded retries:** Maximum 2 retries with exponential backoff (`wait = base * 2^attempt`).
-- **Idempotency Guard:** Non-idempotent operations (such as HTTP `POST` without an idempotency key) immediately raise `SafetyError` upon failure rather than retrying.
-- **Locator Hierarchy:** Role/Name -> Label -> Data-testid -> CSS. Alternate locators are tried only for the identical semantic element.
-- **Immutable Failures:** A business assertion mismatch is recorded as `FAILED` and never self-healed.
-
----
-
-## 7. Reporting & Output Structure
-
-Every run outputs:
-```
-output/
-├── execution_log.json    # Machine-readable structured execution logs
-├── report.md             # 11-section comprehensive Markdown report
-├── test_plan.json        # Machine-readable validated test plan
-└── screenshots/          # Evidence screenshots for UI failures
-    └── SMK-003.png
-```
+### 3.5 Evaluator, RCA & Isolated Reporting
+- **Explicit Outcome Policy:**
+  - `PASSED`: All tests passed (`passed > 0`, `failed == 0`, `blocked == 0`).
+  - `FAILED`: At least one test failed or errored.
+  - `BLOCKED`: Prerequisite failure blocked tests without other failures.
+- **Evidence-Grounded RCA:** Generates structured hypotheses referencing failing step indices, console logs, network response codes, and screenshot paths.
+- **Uncovered Requirements Tracking:** Explicitly identifies specified requirements that lack verified passing tests.
+- **Run Isolation:** Outputs artifacts to `output/<run_id>/` and mirrors them to `output/` for backward compatibility.
+- **Memory Release:** Releases stored run state in `release_run_state_manager(run_id)` upon completion.

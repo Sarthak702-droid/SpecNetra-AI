@@ -107,14 +107,16 @@ async def main_async():
 
     passed_count = sum(1 for r in results if r.outcome == "PASSED")
     failed_count = sum(1 for r in results if r.outcome in ("FAILED", "ERROR"))
+    blocked_count = sum(1 for r in results if r.outcome == "BLOCKED")
 
     print()
     print("Execution completed")
     print(f"Passed: {passed_count}")
     print(f"Failed: {failed_count}")
+    print(f"Blocked: {blocked_count}")
 
-    # Return exit code 1 if any test failed, 0 if all passed
-    sys.exit(1 if failed_count > 0 else 0)
+    # Return exit code 1 if any test failed, errored, or blocked; 0 only if all passed
+    sys.exit(1 if (failed_count > 0 or blocked_count > 0 or passed_count == 0) else 0)
 
 
 def main():

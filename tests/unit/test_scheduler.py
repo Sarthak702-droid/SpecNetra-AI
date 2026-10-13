@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.test_scheduler import SchedulerError, order_for_execution, topological_sort
-from app.models import TestCase
+from app.models import APIStep, TestCase
 
 
 def make_dummy_test(test_id: str, deps: list[str]) -> TestCase:
@@ -11,7 +11,7 @@ def make_dummy_test(test_id: str, deps: list[str]) -> TestCase:
         priority="P0",
         category="api",
         dependencies=deps,
-        steps=[],
+        steps=[APIStep(operation_id="dummy", method="GET", path="/dummy")],
         expected="Expected success",
     )
 

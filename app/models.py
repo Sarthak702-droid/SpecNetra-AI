@@ -65,6 +65,7 @@ class UIStep(BaseModel):
         "screenshot",
     ]
     params: dict[str, Any] = Field(default_factory=dict)
+    candidate_locators: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class TestCase(BaseModel):
@@ -75,7 +76,7 @@ class TestCase(BaseModel):
     priority: Literal["P0", "P1", "P2"] = "P0"
     category: Literal["api", "ui", "cross_layer"]
     dependencies: list[str] = Field(default_factory=list)
-    steps: list[APIStep | UIStep] = Field(default_factory=list)
+    steps: list[APIStep | UIStep] = Field(min_length=1)
     expected: str
     timeout_ms: int = 15000
     max_retries: int = 2
@@ -99,6 +100,9 @@ class StepResult(BaseModel):
     retry_count: int = 0
     evidence_ids: list[str] = Field(default_factory=list)
     error_code: str | None = None
+    recovered_by: str | None = None
+    console_logs: list[str] = Field(default_factory=list)
+    network_errors: list[str] = Field(default_factory=list)
 
 
 class TestResult(BaseModel):

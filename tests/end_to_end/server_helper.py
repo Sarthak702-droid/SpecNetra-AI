@@ -8,9 +8,14 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from demo.api.main import app as api_app
+from demo.api.routers.appointments import router as appointments_router
+from demo.api.routers.auth import router as auth_router
 
 # Create a simple SPA server for demo/web/dist with embedded fallback
 web_app = FastAPI()
+web_app.include_router(auth_router)
+web_app.include_router(appointments_router)
+
 dist_dir = Path(__file__).parent.parent.parent / "demo" / "web" / "dist"
 
 if dist_dir.exists():
@@ -40,7 +45,7 @@ FALLBACK_SPA_HTML = """<!doctype html>
   <script>
     const app = document.getElementById("app");
     function getApiUrl() {
-      return window.location.port === "3000" ? `${window.location.protocol}//${window.location.hostname}:8001` : "";
+      return "";
     }
     function getStoredToken() { return localStorage.getItem("access_token"); }
     function setStoredToken(t) { localStorage.setItem("access_token", t); }

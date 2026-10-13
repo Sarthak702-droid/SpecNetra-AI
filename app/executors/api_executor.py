@@ -31,7 +31,13 @@ async def execute_api_step(
     state_manager: RunStateManager,
     step_index: int = 0,
 ) -> StepResult:
-    url = f"{settings.api_base_url.rstrip('/')}/{step.path.lstrip('/')}"
+    path = step.path
+    if "{" in path and "}" in path:
+        resources = await state_manager.get_all_resources()
+        for k, v in resources.items():
+            path = path.replace(f"{{{k}}}", str(v))
+
+    url = f"{settings.api_base_url.rstrip('/')}/{path.lstrip('/')}"
     assert_allowed_url(url)
 
     # Resolve token if authenticated session exists
@@ -82,33 +88,31 @@ async def execute_api_step(
 
     errors: list[str] = []
 
-    # Check assertions
+    # Check assertions strictly
     for assertion in step.assertions:
         kind = assertion.get("kind")
         if kind == "assert_status":
             res = assert_status(response.status_code, assertion.get("expected", 200))
             if not res.passed:
                 errors.append(res.message)
-        elif kind == "assert_json_schema" and body is not None:
-            schema = assertion.get("schema", {})
-            schema_errs = validate_response_schema(body, schema)
-            errors.extend(schema_errs)
-        elif kind == "assert_field" and body is not None:
-            res = assert_field(body, assertion.get("path", ""), assertion.get("expected"))
-            if not res.passed:
-                errors.append(res.message)
-
-    # If this step creates auth or tokens, extract it
-    if body and isinstance(body, dict):
-        if "access_token" in body:
-            await state_manager.store_token("session_token", body["access_token"])
-
-    # Extract dynamic resources (e.g. "id" -> "appointment_id")
-    if body and step.extract:
-        for json_path, ref_key in step.extract.items():
-            extracted_val = extract_value_by_path(body, json_path)
-            if extracted_val is not None:
-                await state_manager.store_resource(ref_key, extracted_val)
+        elif kind == "assert_json_schema":
+            if body is None:
+                errors.append(
+                    f"Schema assertion failed: response is not valid JSON (content-type: {content_type})"
+                )
+            else:
+                schema = assertion.get("schema", {})
+                schema_errs = validate_response_schema(body, schema)
+                errors.extend(schema_errs)
+        elif kind == "assert_field":
+            if body is None:
+                errors.append(
+                    f"Field assertion '{assertion.get('path')}' failed: response is not valid JSON (content-type: {content_type})"
+                )
+            else:
+                res = assert_field(body, assertion.get("path", ""), assertion.get("expected"))
+                if not res.passed:
+                    errors.append(res.message)
 
     if errors:
         return StepResult(
@@ -118,6 +122,17 @@ async def execute_api_step(
             duration_ms=duration_ms,
             error_code="API_ASSERTION_FAILED",
         )
+
+    # Commit state only AFTER all assertions have passed (transactional pattern)
+    if body and isinstance(body, dict):
+        if "access_token" in body:
+            await state_manager.store_token("session_token", body["access_token"])
+
+    if body and step.extract:
+        for json_path, ref_key in step.extract.items():
+            extracted_val = extract_value_by_path(body, json_path)
+            if extracted_val is not None:
+                await state_manager.store_resource(ref_key, extracted_val)
 
     return StepResult(
         step_index=step_index,

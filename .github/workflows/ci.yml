@@ -130,3 +130,15 @@ jobs:
         with:
           name: defective-run-evidence
           path: output/
+
+  docker-e2e:
+    name: Docker Compose Verification
+    runs-on: ubuntu-latest
+    needs: [e2e-healthy, e2e-defective]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Docker Compose Healthy E2E
+        run: docker compose up --build --abort-on-container-exit --exit-code-from runner
+      - name: Verify Clean Runner Exit
+        run: echo "Docker Compose runner exited successfully"
+

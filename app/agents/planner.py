@@ -1,9 +1,11 @@
 import json
+import os
 from typing import Any
 
 from app.config import settings
 from app.core.contract_validation import extract_response_schema
 from app.core.logging import get_logger
+from app.core.security import assert_allowed_url
 from app.models import (
     APIStep,
     InputBundle,
@@ -14,29 +16,221 @@ from app.models import (
 
 logger = get_logger(__name__)
 
+ALLOWED_UI_ACTIONS = {
+    "navigate",
+    "fill_by_label",
+    "click_by_role",
+    "assert_visible",
+    "assert_text",
+    "assert_url",
+    "screenshot",
+}
+
 
 class PlanningFailedError(Exception):
     pass
 
 
+def extract_openapi_operations(openapi_doc: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Extracts all operation definitions mapped by operationId from an OpenAPI specification."""
+    operations: dict[str, dict[str, Any]] = {}
+    for path, path_item in openapi_doc.get("paths", {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method in ("get", "post", "put", "patch", "delete", "head"):
+            if method in path_item and isinstance(path_item[method], dict):
+                op_data = path_item[method]
+                op_id = op_data.get("operationId")
+                if op_id:
+                    operations[op_id] = {
+                        "method": method.upper(),
+                        "path": path,
+                        "summary": op_data.get("summary", ""),
+                        "parameters": op_data.get("parameters", []),
+                        "requestBody": op_data.get("requestBody", {}),
+                        "responses": op_data.get("responses", {}),
+                    }
+    return operations
+
+
+def derive_sample_body_from_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Generates dummy valid values matching an OpenAPI object schema properties."""
+    sample: dict[str, Any] = {}
+    props = schema.get("properties", {})
+    for prop_name, prop_spec in props.items():
+        prop_type = prop_spec.get("type", "string")
+        if prop_type == "string":
+            sample[prop_name] = f"test_{prop_name}"
+        elif prop_type == "integer":
+            sample[prop_name] = 1
+        elif prop_type == "number":
+            sample[prop_name] = 1.0
+        elif prop_type == "boolean":
+            sample[prop_name] = True
+        elif prop_type == "array":
+            sample[prop_name] = []
+        elif prop_type == "object":
+            sample[prop_name] = {}
+    return sample
+
+
+def validate_test_plan(plan: TestPlan, bundle: InputBundle) -> list[str]:
+    """
+    Semantic validator ensuring:
+    1. Every test has at least 1 step and at least 1 verifiable assertion.
+    2. Requirement IDs are traceable.
+    3. Operation IDs exist in OpenAPI.
+    4. UI actions are supported and URLs are allowed.
+    """
+    errors: list[str] = []
+    req_ids = {r.req_id for r in bundle.requirements}
+    openapi_ops = extract_openapi_operations(bundle.openapi_doc)
+    openapi_paths = set(bundle.openapi_doc.get("paths", {}).keys())
+
+    if not plan.tests:
+        errors.append("Test plan has no test cases")
+        return errors
+
+    for test in plan.tests:
+        if not test.steps:
+            errors.append(f"Test '{test.test_id}' has 0 steps (empty test cases are rejected)")
+            continue
+
+        for r_id in test.requirement_ids:
+            if r_id not in req_ids:
+                errors.append(f"Test '{test.test_id}' references unknown requirement '{r_id}'")
+
+        has_assertion = False
+        for step_idx, step in enumerate(test.steps):
+            is_api = isinstance(step, APIStep) or getattr(step, "kind", None) == "api_request"
+            is_ui = isinstance(step, UIStep) or getattr(step, "kind", None) == "ui_action"
+
+            if is_api:
+                if step.assertions:
+                    has_assertion = True
+                if step.operation_id not in openapi_ops:
+                    clean_path = step.path.split("?")[0]
+                    if clean_path not in openapi_paths and not any(
+                        p in step.path for p in openapi_paths
+                    ):
+                        errors.append(
+                            f"Test '{test.test_id}' step {step_idx}: operation_id '{step.operation_id}' not found in OpenAPI"
+                        )
+            elif is_ui:
+                if step.action not in ALLOWED_UI_ACTIONS:
+                    errors.append(
+                        f"Test '{test.test_id}' step {step_idx}: unsupported UI action '{step.action}'"
+                    )
+                if step.action in ("assert_visible", "assert_text", "assert_url"):
+                    has_assertion = True
+                if step.action == "navigate":
+                    raw_url = step.params.get("url", "")
+                    try:
+                        clean_url = raw_url.split("{")[0].rstrip("/") if "{" in raw_url else raw_url
+                        if clean_url:
+                            assert_allowed_url(clean_url)
+                    except Exception as e:
+                        errors.append(f"Test '{test.test_id}' step {step_idx}: disallowed URL: {e}")
+
+        if not has_assertion:
+            errors.append(
+                f"Test '{test.test_id}' has no executable assertions or checks (under-asserted tests rejected)"
+            )
+
+    return errors
+
+
+def build_generic_api_step(
+    op_id: str,
+    op_spec: dict[str, Any],
+    expect_failure: bool = False,
+    invalid_body: bool = False,
+    details: dict[str, Any] | None = None,
+    openapi_doc: dict[str, Any] | None = None,
+) -> APIStep:
+    """Builds a deterministic APIStep directly from an OpenAPI operation contract."""
+    details = details or {}
+    method = op_spec["method"]
+    path = op_spec["path"]
+
+    # Determine expected status
+    responses = op_spec.get("responses", {})
+    success_status = 200
+    for code in (200, 201, 204):
+        if str(code) in responses:
+            success_status = code
+            break
+
+    # Body derivation
+    body = details.get("body")
+    if body is None and method in ("POST", "PUT", "PATCH"):
+        req_content = op_spec.get("requestBody", {}).get("content", {})
+        json_schema = req_content.get("application/json", {}).get("schema", {})
+        if json_schema:
+            body = derive_sample_body_from_schema(json_schema)
+        else:
+            body = {}
+
+    if invalid_body:
+        body = {"invalid_field": None}
+        assertions = [{"kind": "assert_status", "expected": 422}]
+        return APIStep(
+            operation_id=op_id,
+            method=method,  # type: ignore
+            path=path,
+            body=body,
+            assertions=assertions,
+            expect_failure=True,
+        )
+
+    if expect_failure:
+        assertions = [{"kind": "assert_status", "expected": 401}]
+        return APIStep(
+            operation_id=op_id,
+            method=method,  # type: ignore
+            path=path,
+            body=body,
+            assertions=assertions,
+            expect_failure=True,
+        )
+
+    assertions = [{"kind": "assert_status", "expected": success_status}]
+    if openapi_doc:
+        schema = extract_response_schema(openapi_doc, op_id, success_status)
+        if schema:
+            assertions.append({"kind": "assert_json_schema", "schema": schema})
+
+    extract = details.get("extract", {})
+    return APIStep(
+        operation_id=op_id,
+        method=method,  # type: ignore
+        path=path,
+        body=body,
+        assertions=assertions,
+        extract=extract,
+    )
+
+
 def build_fixture_plan(bundle: InputBundle) -> TestPlan:
     """
     Deterministic fixture-based planner mode.
-    Maps scenarios and requirements into executable TestCases directly.
+    Maps scenarios and requirements into executable TestCases directly,
+    supporting both demo appointment specifics and arbitrary OpenAPI operations.
     """
     tests: list[TestCase] = []
+    openapi_ops = extract_openapi_operations(bundle.openapi_doc)
 
-    # Map scenario ops to APIStep / UIStep
     for sc in bundle.scenarios:
         steps: list[APIStep | UIStep] = []
         is_api = any(op.kind == "api" for op in sc.operations)
         is_ui = any(op.kind == "ui" for op in sc.operations)
-
         category = "cross_layer" if (is_api and is_ui) else ("api" if is_api else "ui")
 
         for op in sc.operations:
             if op.kind == "api":
-                if op.operation_id == "loginUser":
+                op_id = op.operation_id or ""
+                # Check for recognized appointment demo operations
+                if op_id == "loginUser":
                     if op.expect_failure:
                         steps.append(
                             APIStep(
@@ -80,14 +274,14 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                                 ],
                             )
                         )
-                elif op.operation_id == "createAppointment":
+                elif op_id == "createAppointment":
                     if op.invalid_body:
                         steps.append(
                             APIStep(
                                 operation_id="createAppointment",
                                 method="POST",
                                 path="/api/appointments",
-                                body={"patient_name": ""},  # Missing starts_at and empty name
+                                body={"patient_name": ""},
                                 assertions=[
                                     {"kind": "assert_status", "expected": 422},
                                 ],
@@ -120,9 +314,25 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                                 extract={"id": "appointment_id"},
                             )
                         )
+                elif op_id in openapi_ops:
+                    # Generic OpenAPI derived operation!
+                    generic_step = build_generic_api_step(
+                        op_id=op_id,
+                        op_spec=openapi_ops[op_id],
+                        expect_failure=op.expect_failure,
+                        invalid_body=op.invalid_body,
+                        details=op.details,
+                        openapi_doc=bundle.openapi_doc,
+                    )
+                    steps.append(generic_step)
+                else:
+                    raise PlanningFailedError(
+                        f"Unknown API operation '{op_id}' in scenario '{sc.id}' not found in OpenAPI"
+                    )
 
             elif op.kind == "ui":
-                if op.action == "verify_dashboard_visible":
+                action = op.action or ""
+                if action == "verify_dashboard_visible":
                     steps.extend(
                         [
                             UIStep(
@@ -142,7 +352,7 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                             UIStep(action="assert_visible", params={"testid": "appointment-list"}),
                         ]
                     )
-                elif op.action == "verify_appointment_visible":
+                elif action == "verify_appointment_visible":
                     steps.extend(
                         [
                             UIStep(
@@ -161,8 +371,18 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
                             ),
                         ]
                     )
+                elif action in ALLOWED_UI_ACTIONS:
+                    steps.append(UIStep(action=action, params=op.details))  # type: ignore
+                else:
+                    raise PlanningFailedError(
+                        f"Unsupported UI action '{action}' in scenario '{sc.id}'"
+                    )
 
-        # Map scenario ID to test ID (e.g. SC-001 -> SMK-001 or REG-001)
+        if not steps:
+            raise PlanningFailedError(
+                f"Scenario '{sc.id}' generated 0 executable steps (empty tests are disallowed)"
+            )
+
         test_id = sc.id.replace("SC-00", "SMK-00" if sc.priority == "P0" else "REG-00")
         dep_tests = [
             d.replace("SC-00", "SMK-00" if "001" in d or "002" in d or "003" in d else "REG-00")
@@ -181,12 +401,16 @@ def build_fixture_plan(bundle: InputBundle) -> TestPlan:
             )
         )
 
-    return TestPlan(plan_id="plan_fixture_001", tests=tests)
+    plan = TestPlan(plan_id="plan_fixture_001", tests=tests)
+    validation_errs = validate_test_plan(plan, bundle)
+    if validation_errs:
+        raise PlanningFailedError("; ".join(validation_errs))
+    return plan
 
 
 async def generate_test_plan(bundle: InputBundle) -> TestPlan:
     """
-    Generates a validated TestPlan using either configured LLM via pydantic-ai
+    Generates a validated TestPlan using configured LLM via pydantic-ai
     or deterministic fixture mode.
     """
     if settings.plan_mode == "fixture":
@@ -195,6 +419,10 @@ async def generate_test_plan(bundle: InputBundle) -> TestPlan:
 
     # AI Mode with pydantic-ai
     try:
+        # Ensure OpenAI API key is propagated to environment
+        if settings.llm_api_key and settings.llm_api_key != "test-key":
+            os.environ["OPENAI_API_KEY"] = settings.llm_api_key
+
         from pydantic_ai import Agent
 
         planner_agent = Agent(
@@ -205,20 +433,32 @@ You are an expert test planning agent for SpecNetra AI.
 Generate a structured TestPlan Pydantic model for the given requirements, OpenAPI operations, and scenarios.
 Rules:
 1. Every test must reference valid requirement IDs.
-2. Every test must have verifiable expected results.
-3. Steps must be strictly limited to 'api_request' or 'ui_action'.
-4. Do NOT hallucinate shell commands or external tools.
+2. Every test must have at least one executable check (assert_status, assert_field, assert_json_schema, assert_visible, assert_text, or assert_url).
+3. Every test must contain at least 1 step. Zero-step tests are strictly prohibited.
+4. Steps must be strictly limited to 'api_request' or 'ui_action'.
+5. UI actions must only be one of: 'navigate', 'fill_by_label', 'click_by_role', 'assert_visible', 'assert_text', 'assert_url', 'screenshot'.
+6. Do NOT hallucinate shell commands or external tools.
 """,
         )
 
         prompt_data = {
             "requirements": [r.model_dump() for r in bundle.requirements],
             "scenarios": [s.model_dump() for s in bundle.scenarios],
-            "openapi_paths": list(bundle.openapi_doc.get("paths", {}).keys()),
+            "openapi_operations": extract_openapi_operations(bundle.openapi_doc),
         }
         res = await planner_agent.run(json.dumps(prompt_data))
         plan = res.output
+
+        # Perform strict semantic validation on the AI-generated plan
+        val_errors = validate_test_plan(plan, bundle)
+        if val_errors:
+            raise PlanningFailedError(
+                f"AI-generated plan failed semantic validation: {'; '.join(val_errors)}"
+            )
+
         return plan
     except Exception as e:
-        logger.warning(f"AI planning failed ({e}); falling back to verified fixture plan")
+        logger.warning(f"AI planning failed ({e}); checking fallback")
+        if settings.plan_mode == "ai_strict":
+            raise PlanningFailedError(f"AI planning failed under strict mode: {e}")
         return build_fixture_plan(bundle)

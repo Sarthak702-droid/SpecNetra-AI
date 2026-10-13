@@ -14,8 +14,8 @@ class InputValidationError(Exception):
 
 def parse_requirements(text: str) -> list[Requirement]:
     requirements: list[Requirement] = []
-    # Match headers like "## REQ-001 — User Authentication" or "## REQ-001: User Authentication"
-    section_pattern = re.compile(r"^##\s+(REQ-\d+)[\s:—–-]+([^\n]+)", re.MULTILINE)
+    # Match headers like "## REQ-001 — User Authentication" or "## REQ-INV-001: Item Creation"
+    section_pattern = re.compile(r"^##\s+(REQ-[A-Za-z0-9_-]+)[\s:—–-]+([^\n]+)", re.MULTILINE)
     matches = list(section_pattern.finditer(text))
 
     if not matches:

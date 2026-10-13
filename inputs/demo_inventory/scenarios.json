@@ -1,0 +1,63 @@
+{
+  "scenarios": [
+    {
+      "id": "SC-001",
+      "name": "Register new item",
+      "requirement_ids": ["REQ-INV-001"],
+      "priority": "P0",
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createItem",
+          "details": {
+            "body": {
+              "sku": "SKU-TEST-999",
+              "quantity": 50,
+              "name": "Steel Bolt M8"
+            },
+            "extract": { "id": "item_id" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "SC-002",
+      "name": "Retrieve created item",
+      "requirement_ids": ["REQ-INV-002"],
+      "priority": "P0",
+      "dependencies": ["SC-001"],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "getItem"
+        }
+      ]
+    },
+    {
+      "id": "SC-003",
+      "name": "List all items",
+      "requirement_ids": ["REQ-INV-002"],
+      "priority": "P1",
+      "dependencies": ["SC-001"],
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "listItems"
+        }
+      ]
+    },
+    {
+      "id": "SC-004",
+      "name": "Reject invalid item payload",
+      "requirement_ids": ["REQ-INV-003"],
+      "priority": "P1",
+      "operations": [
+        {
+          "kind": "api",
+          "operation_id": "createItem",
+          "invalid_body": true
+        }
+      ]
+    }
+  ]
+}

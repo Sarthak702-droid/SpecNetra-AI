@@ -1,0 +1,132 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Warehouse Inventory Management API",
+    "version": "1.0.0",
+    "description": "Unrelated inventory management target for SpecNetra general-purpose autonomy verification"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health probe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" }
+                  },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items": {
+      "post": {
+        "operationId": "createItem",
+        "summary": "Create an inventory item",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sku": { "type": "string", "minLength": 1 },
+                  "quantity": { "type": "integer" },
+                  "name": { "type": "string" }
+                },
+                "required": ["sku", "quantity"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Item created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "sku": { "type": "string" },
+                    "quantity": { "type": "integer" },
+                    "status": { "type": "string" }
+                  },
+                  "required": ["id", "sku", "quantity", "status"]
+                }
+              }
+            }
+          },
+          "422": { "description": "Validation error" }
+        }
+      },
+      "get": {
+        "operationId": "listItems",
+        "summary": "List all inventory items",
+        "responses": {
+          "200": {
+            "description": "List of inventory items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "sku": { "type": "string" },
+                      "quantity": { "type": "integer" }
+                    },
+                    "required": ["id", "sku"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{item_id}": {
+      "get": {
+        "operationId": "getItem",
+        "summary": "Retrieve an item by ID",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "sku": { "type": "string" },
+                    "quantity": { "type": "integer" }
+                  },
+                  "required": ["id", "sku", "quantity"]
+                }
+              }
+            }
+          },
+          "404": { "description": "Item not found" }
+        }
+      }
+    }
+  }
+}

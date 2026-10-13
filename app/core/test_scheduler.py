@@ -51,7 +51,25 @@ def topological_sort(tests: list[TestCase]) -> list[list[TestCase]]:
     return batches
 
 
-def order_for_execution(tests: list[TestCase]) -> list[TestCase]:
-    """Flat ordered list of tests respecting all dependencies."""
+def order_for_execution(tests: list[TestCase], max_tests: int | None = None) -> list[TestCase]:
+    """Flat ordered list of tests respecting all dependencies, bounded by max_tests."""
     batches = topological_sort(tests)
-    return [t for batch in batches for t in batch]
+    ordered = [t for batch in batches for t in batch]
+    if max_tests is not None and len(ordered) > max_tests:
+        ordered = ordered[:max_tests]
+    return ordered
+
+
+def check_dependency_status(test: TestCase, outcomes: dict[str, str]) -> tuple[bool, str | None]:
+    """
+    Checks if all dependencies of the test are satisfied (PASSED).
+    If any dependency failed, errored, or was blocked, returns (True, reason).
+    Otherwise returns (False, None).
+    """
+    for dep in test.dependencies:
+        dep_outcome = outcomes.get(dep)
+        if dep_outcome is None:
+            return True, f"Prerequisite test '{dep}' has not executed yet"
+        if dep_outcome != "PASSED":
+            return True, f"Prerequisite test '{dep}' had outcome '{dep_outcome}'"
+    return False, None

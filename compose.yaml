@@ -1,7 +1,8 @@
 services:
   demo-api:
     build:
-      context: demo/api
+      context: .
+      dockerfile: demo/api/Dockerfile
     ports:
       - "8001:8001"
     environment:
@@ -43,6 +44,7 @@ services:
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - LLM_API_KEY=${LLM_API_KEY:-test-key}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-${LLM_API_KEY:-test-key}}
       - PLAN_MODE=${PLAN_MODE:-fixture}
       - DEMO_BUG_MODE=${DEMO_BUG_MODE:-}
       - TEST_USER_EMAIL=${TEST_USER_EMAIL:-tester@example.test}
